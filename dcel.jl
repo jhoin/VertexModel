@@ -1,11 +1,12 @@
 # This module contains the doubly-connected edge list data structure
 # It is a provisory file, each object will be moved to its respective file in the near future
 
-# This object hold the vertex information
-mutable struct Vertex{T}
-    x::T
-    y::T
-    leavingEdge::Hedge
+# This object holds the cell information
+mutable struct Cell{T}
+    incEdge::T
+    perimCell::Float64
+    areaCell::Float64
+    centroidCell::Vector{Float64}
 end
 
 # This object holds the half edge information
@@ -18,12 +19,11 @@ mutable struct Hedge{T}
     edgeLen::Float64
 end
 
-# This object holds the cell information
-mutable struct Cell{T}
-    incEdge::T
-    perimCell::Float64
-    areaCell::Float64
-    centroidCell::Vector{Float64}(2)
+# This object hold the vertex information
+mutable struct Vertex{T}
+    x::T
+    y::T
+    leavingEdge::Hedge
 end
 
 # contains the whole mesh

@@ -1,14 +1,6 @@
 # This module contains the doubly-connected edge list data structure
 # It is a provisory file, each object will be moved to its respective file in the near future
 
-# include("Vertex.jl")
-# include("Hedge.jl")
-# include("Cell.jl")
-
-#import .Vertex
-#import .Hedge
-#import .Cell
-
 module DCEL
 
 abstract type AbstractDcel end
@@ -53,6 +45,43 @@ mutable struct Dcel
     listCell::Vector{Cell}
 end
 
+# Create list of vertices
+# Arguments: array of lines containing vertex coordinates
+# Return: list of vertices objects
+function getvertexlist(lines::Array{String,1},nPoints::Integer)
+    pointCoords = Array{Float64}(undef,2)
+    vertices = Array{Vertex}(undef,nPoints)
+    for i in 1:nPoints
+        pointCoords[:] = [parse(Float64,str) for str in split(popfirst!(lines))]
+        vertex = Vertex()
+        vertex.x = pointCoords[1]
+        vertex.y = pointCoords[2]
+        vertices[i] = vertex
+    end # loop points
+
+    return vertices
+end # getvertexlist
+
+# Find the twins of edges in list of edges
+# Arguments: array of vertex index in each edge, number or edges
+# Return: list of edge objects
+function findtwinedges(provEdges::Vector{Hedge}, vertsInEdge::Array{Int64,2},nEdges::Integer)
+    for i in 1:nEdges
+        verts = reverse(vertsInEdge[i,:])
+        for j in 1:nEdges
+            all(verts == 0) && break
+            i == j && continue
+            found = all(vertsInEdge[j,:] == verts)
+            if(found)
+                provEdges[i].twinEdge = provEdges[j]
+                break
+            end
+        end
+    end # loop edges
+
+    return provEdges
+end # findtwinedges
+
 # Import mesh from file, and represent it as a DCEL object
 # Arguments: file path
 # Return: DCEL object
@@ -63,15 +92,7 @@ function importfromfile(filePath::String)
 
     # Get the point coordinates
     nPoints = parse(Int,popfirst!(allLines))
-    pointCoords = Array{Float64}(undef,2)
-    vertices = Array{Vertex}(undef,nPoints)
-    for i in 1:nPoints
-        pointCoords[:] = [parse(Float64,str) for str in split(popfirst!(allLines))]
-        vertex = Vertex()
-        vertex.x = pointCoords[1]
-        vertex.y = pointCoords[2]
-        vertices[i] = vertex
-    end # loop points
+    vertices = getvertexlist(allLines,nPoints) # allLines is modified inside function!!!
 
     # Put edges and cells inside arrays
     cellListInfo = [parse(Int,str) for str in split(popfirst!(allLines))]
@@ -88,6 +109,7 @@ function importfromfile(filePath::String)
         # Get the edge starting at the first vertex of the cell
         firstEdge = Hedge()
         firstEdge.originVertex = vertices[vertsInCells[1]]
+        firstEdge.edgeLen = 3.5
         vertices[vertsInCells[1]].leavingEdge = firstEdge
         thisCell = Cell()
         thisCell.incEdge = firstEdge
@@ -133,19 +155,7 @@ function importfromfile(filePath::String)
     end # loop cell list
 
     # Set the twin edges
-    for i in 1:nEdges
-        #println(vertsInEdge[i,:])
-        verts = reverse(vertsInEdge[i,:])
-        for j in 1:nEdges
-            all(verts == 0) && break
-            i == j && continue
-            found = all(vertsInEdge[j,:] == verts)
-            if(found)
-                provEdges[i].twinEdge = provEdges[j]
-                break
-            end
-        end
-    end # loop edges
+    findtwinedges(provEdges,vertsInEdge,nEdges)
 
     # Clean edges
     edges = provEdges[1:nEdges]
@@ -158,12 +168,9 @@ end # importfromfile
 # Return: edge object with length updated
 # TODO: move to an edge module
 function newedgelen!(edge::Hedge)
-
     p1 = edge.originVertex
     p2 = edge.nextEdge.originVertex
     edge.edgeLen = distvertices(p1,p2)
-
-    #return edge
 end # newedgelen
 
 # Calculate the distance between two vertices
@@ -173,7 +180,6 @@ end # newedgelen
 function distvertices(p1::Vertex,p2::Vertex)
     x1 = p1.x
     y1 = p1.y
-
     x2 = p2.x
     y2 = p2.y
 
@@ -186,33 +192,28 @@ end # distvertices
 # TODO: move to a cell module
 function updatecell!(cell::Cell)
     edge = cell.incEdge
-    first = edge
-    println(edge.edgeLen)
     p1 = edge.originVertex
     sumArea = 0.0
     sumPerim = 0.0
-    #p1 = first
+    first = p1
     p2 = edge.nextEdge.originVertex
 
     # loop over vertex and get the measurements
-    for i in 1:20
+    while true
         sumArea += abs(p1.x*p2.y - p2.x*p1.y)
         sumPerim += distvertices(p1,p2)
         p1 = p2
-        #println(p1.x,"--->",p1.y)
-        #if(p1 == first) break end
-        edge = p2.leavingEdge
-        #println(edge === first)
-        if(edge == first)
+        edge = edge.nextEdge
+        if(p2 == first)
             break
         end
         p2 = edge.nextEdge.originVertex
-        #println(p1.x,"   ",p1.y)
     end
 
     # Update the values
     cell.areaCell = sumArea
     cell.perimCell = sumPerim
+    
     return cell
 end # updatecell
 
@@ -222,23 +223,16 @@ using .DCEL
 
 system = importfromfile("/home/jhon/Documents/Projects/vertexModelJulia/tests/ex2.points")
 
-# for i in 1:length(system.listVert)
-#     vert = system.listVert[i]
-#     println(vert.x," ",vert.y)
-#
-# end
-# println("End of the vert coordinate")
-
-#newedgelen(system.listEdge[135]
+# Update the measurements
 for i in 1:length(system.listEdge)
     newedgelen!(system.listEdge[i])
 end
-edge = system.listCell[8].incEdge
-print(edge.edgeLen)
-updatecell!(system.listCell[8])
+
+for i in 1:length(system.listCell)
+    updatecell!(system.listCell[i])
+    println(system.listCell[i].areaCell)
+end
 
 # TODO:
-# Import mesh from file
-# Update mesh measurements (area, perimeter, lenght...)
 # Export mesh to file
 # Plotting operations for mesh

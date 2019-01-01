@@ -13,7 +13,7 @@ module DCEL
 
 abstract type AbstractDcel end
 
-export importfromfile, newedgelen, Dcel
+export importfromfile, newedgelen!, updatecell!, Dcel
 
 # This object holds the cell information
 mutable struct Cell <: AbstractDcel
@@ -88,6 +88,7 @@ function importfromfile(filePath::String)
         # Get the edge starting at the first vertex of the cell
         firstEdge = Hedge()
         firstEdge.originVertex = vertices[vertsInCells[1]]
+        vertices[vertsInCells[1]].leavingEdge = firstEdge
         thisCell = Cell()
         thisCell.incEdge = firstEdge
         firstEdge.containCell = thisCell
@@ -105,6 +106,7 @@ function importfromfile(filePath::String)
 
             nextEdge = Hedge()
             nextEdge.originVertex = vertices[vertsInCells[j]]
+            vertices[vertsInCells[j]].leavingEdge = nextEdge
             nextEdge.containCell = thisCell
             nextEdge.prevEdge = thisEdge
             thisEdge.nextEdge = nextEdge
@@ -117,6 +119,7 @@ function importfromfile(filePath::String)
         # Get the edge starting at the last vertex of the cell
         lastEdge = Hedge()
         lastEdge.originVertex = vertices[vertsInCells[lastVertexCell]]
+        vertices[vertsInCells[lastVertexCell]].leavingEdge = lastEdge
         lastEdge.containCell = thisCell
         provEdges[nEdges].nextEdge = lastEdge
         lastEdge.prevEdge = provEdges[nEdges]
@@ -154,7 +157,7 @@ end # importfromfile
 # Arguments: edge object
 # Return: edge object with length updated
 # TODO: move to an edge module
-function newedgelen(edge::Hedge)
+function newedgelen!(edge::Hedge)
 
     p1 = edge.originVertex
     p2 = edge.nextEdge.originVertex
@@ -177,6 +180,42 @@ function distvertices(p1::Vertex,p2::Vertex)
     return sqrt((x2-x1)^2 + (y2-y1)^2)
 end # distvertices
 
+# Update cell measures
+# Arguments: a cell object
+# Return: float number storing the distance
+# TODO: move to a cell module
+function updatecell!(cell::Cell)
+    edge = cell.incEdge
+    first = edge
+    println(edge.edgeLen)
+    p1 = edge.originVertex
+    sumArea = 0.0
+    sumPerim = 0.0
+    #p1 = first
+    p2 = edge.nextEdge.originVertex
+
+    # loop over vertex and get the measurements
+    for i in 1:20
+        sumArea += abs(p1.x*p2.y - p2.x*p1.y)
+        sumPerim += distvertices(p1,p2)
+        p1 = p2
+        #println(p1.x,"--->",p1.y)
+        #if(p1 == first) break end
+        edge = p2.leavingEdge
+        #println(edge === first)
+        if(edge == first)
+            break
+        end
+        p2 = edge.nextEdge.originVertex
+        #println(p1.x,"   ",p1.y)
+    end
+
+    # Update the values
+    cell.areaCell = sumArea
+    cell.perimCell = sumPerim
+    return cell
+end # updatecell
+
 end # module
 
 using .DCEL
@@ -190,13 +229,13 @@ system = importfromfile("/home/jhon/Documents/Projects/vertexModelJulia/tests/ex
 # end
 # println("End of the vert coordinate")
 
-#newedgelen(system.listEdge[135])
-#print(size(system.listEdge))
+#newedgelen(system.listEdge[135]
 for i in 1:length(system.listEdge)
-    edge = system.listEdge[i]
-    newedgelen(edge)
-    println(system.listEdge[i].edgeLen)
+    newedgelen!(system.listEdge[i])
 end
+edge = system.listCell[8].incEdge
+print(edge.edgeLen)
+updatecell!(system.listCell[8])
 
 # TODO:
 # Import mesh from file

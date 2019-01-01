@@ -13,7 +13,7 @@ module DCEL
 
 abstract type AbstractDcel end
 
-export importfromfile, Dcel
+export importfromfile, newedgelen, Dcel
 
 # This object holds the cell information
 mutable struct Cell <: AbstractDcel
@@ -34,10 +34,6 @@ mutable struct Hedge <: AbstractDcel
     containCell::Cell
     edgeLen::Float64
 
-    #Hedge{T}() where {T} = new{T}()
-
-
-    #Hedge(originVertex) = new{T}(originVertex,undef,undef,undef,undef,0.0)
     Hedge() = new()
 end
 
@@ -92,20 +88,17 @@ function importfromfile(filePath::String)
         # Get the edge starting at the first vertex of the cell
         firstEdge = Hedge()
         firstEdge.originVertex = vertices[vertsInCells[1]]
-        firstEdge.edgeLen = 1.0
         thisCell = Cell()
         thisCell.incEdge = firstEdge
         firstEdge.containCell = thisCell
         thisEdge = firstEdge
 
-
         cells[i] = thisCell
         vertsInEdge[1,:] = vertsInCells[1:2]
-        #vertsInEdge[nEdges,2] = vertsInCells[2]
 
         # Get the edges starting with vertices in the middle
         for j in 2:cellListInfo[2]-1
-            if(vertsInCells[j+1] < 0)
+            if(vertsInCells[j+1] < 0 )
                 lastVertexCell = j
                 break
             end
@@ -114,20 +107,19 @@ function importfromfile(filePath::String)
             nextEdge.originVertex = vertices[vertsInCells[j]]
             nextEdge.containCell = thisCell
             nextEdge.prevEdge = thisEdge
-            nextEdge.edgeLen = 2.0
             thisEdge.nextEdge = nextEdge
-            thisEdge = nextEdge
             nEdges += 1
-            provEdges[nEdges] = thisEdge
+            provEdges[nEdges] = nextEdge
             vertsInEdge[nEdges,:] = [vertsInCells[j],vertsInCells[j+1]]
+            thisEdge = nextEdge
         end # loop cell vertices
 
         # Get the edge starting at the last vertex of the cell
         lastEdge = Hedge()
         lastEdge.originVertex = vertices[vertsInCells[lastVertexCell]]
         lastEdge.containCell = thisCell
-        lastEdge.edgeLen = 3.0
-        lastEdge.prevEdge = thisEdge
+        provEdges[nEdges].nextEdge = lastEdge
+        lastEdge.prevEdge = provEdges[nEdges]
         lastEdge.nextEdge = firstEdge
         firstEdge.prevEdge = lastEdge
 
@@ -139,12 +131,12 @@ function importfromfile(filePath::String)
 
     # Set the twin edges
     for i in 1:nEdges
+        #println(vertsInEdge[i,:])
         verts = reverse(vertsInEdge[i,:])
         for j in 1:nEdges
             all(verts == 0) && break
             i == j && continue
             found = all(vertsInEdge[j,:] == verts)
-            #println(verts,"--->",vertsInEdge[j,:])
             if(found)
                 provEdges[i].twinEdge = provEdges[j]
                 break
@@ -152,17 +144,58 @@ function importfromfile(filePath::String)
         end
     end # loop edges
 
-    return Dcel(vertices,provEdges,cells)
-end # loop function
+    # Clean edges
+    edges = provEdges[1:nEdges]
+
+    return Dcel(vertices,edges,cells)
+end # importfromfile
+
+# Update edge length
+# Arguments: edge object
+# Return: edge object with length updated
+# TODO: move to an edge module
+function newedgelen(edge::Hedge)
+
+    p1 = edge.originVertex
+    p2 = edge.nextEdge.originVertex
+    edge.edgeLen = distvertices(p1,p2)
+
+    #return edge
+end # newedgelen
+
+# Calculate the distance between two vertices
+# Arguments: two Vertex objects
+# Return: float number storing the distance
+# TODO: move to a vertex module
+function distvertices(p1::Vertex,p2::Vertex)
+    x1 = p1.x
+    y1 = p1.y
+
+    x2 = p2.x
+    y2 = p2.y
+
+    return sqrt((x2-x1)^2 + (y2-y1)^2)
+end # distvertices
 
 end # module
 
 using .DCEL
 
 system = importfromfile("/home/jhon/Documents/Projects/vertexModelJulia/tests/ex2.points")
+
+# for i in 1:length(system.listVert)
+#     vert = system.listVert[i]
+#     println(vert.x," ",vert.y)
+#
+# end
+# println("End of the vert coordinate")
+
+#newedgelen(system.listEdge[135])
+#print(size(system.listEdge))
 for i in 1:length(system.listEdge)
     edge = system.listEdge[i]
-    println(edge.edgeLen)
+    newedgelen(edge)
+    println(system.listEdge[i].edgeLen)
 end
 
 # TODO:

@@ -82,6 +82,51 @@ function findtwinedges(provEdges::Vector{Hedge}, vertsInEdge::Array{Int64,2},nEd
     return provEdges
 end # findtwinedges
 
+# Acessory function, it feills some of the fields in the Hedge object
+# Arguments:
+# Return: DCEL object
+function fillnexthedge(this::Hedge, vert::Vertex, cell::Cell)
+    next = Hedge()
+    next.containCell = cell
+    next.prevEdge = this
+    next.originVertex = vert
+    return next
+end # fillnexthedge
+
+# Gets all verts in edge, the vert reference is the index on the vertex list
+# Arguments:
+# Return: Vector with the vertex in each edge
+function getedgeverts(lines::Array{String,1}, info::Array{Int,1})
+
+    vertsInCells = Vector{Int}(undef,info[2])
+    vertsInEdge = Array{Int}(undef,info[1]*info[2],2)
+    fill!(vertsInEdge,0)
+    nEdges = 0
+    lastVertexCell = 1
+    for i in 1:info[1]
+        vertsInCells[:] = [parse(Int,str) for str in split(lines[i])]
+
+        # Get the edges starting with vertices in the middle
+        for j in 1:info[2]-1
+            if(vertsInCells[j+1] < 0 )
+                lastVertexCell = j
+                break
+            end
+            nEdges += 1
+            vertsInEdge[nEdges,:] = [vertsInCells[j],vertsInCells[j+1]]
+            println(vertsInEdge[nEdges,:])
+        end # loop cell vertices
+
+        # Get the edge starting at the last vertex of the cell
+        nEdges += 1
+        vertsInEdge[nEdges,:] = [vertsInCells[lastVertexCell],vertsInCells[1]]
+        println(vertsInEdge[nEdges,:])
+    end # loop cell list
+
+    return vertsInEdge[1:nEdges,:]
+end
+
+
 # Import mesh from file, and represent it as a DCEL object
 # Arguments: file path
 # Return: DCEL object
@@ -96,10 +141,10 @@ function importfromfile(filePath::String)
 
     # Put edges and cells inside arrays
     cellListInfo = [parse(Int,str) for str in split(popfirst!(allLines))]
+    vertsInEdge = getedgeverts(allLines,cellListInfo)
     vertsInCells = Vector{Int}(undef,cellListInfo[2])
-    vertsInEdge = Array{Int}(undef,cellListInfo[1]*cellListInfo[2],2)
-    fill!(vertsInEdge,0)
-    provEdges = Array{Hedge}(undef,cellListInfo[1]*cellListInfo[2])
+
+    edges = Array{Hedge}(undef,size(vertsInEdge,1))
     cells = Array{Cell}(undef,cellListInfo[1])
     nEdges = 1
     lastVertexCell = 1
@@ -107,17 +152,14 @@ function importfromfile(filePath::String)
         vertsInCells[:] = [parse(Int,str) for str in split(popfirst!(allLines))]
 
         # Get the edge starting at the first vertex of the cell
+        thisCell = Cell()
         firstEdge = Hedge()
         firstEdge.originVertex = vertices[vertsInCells[1]]
-        firstEdge.edgeLen = 3.5
         vertices[vertsInCells[1]].leavingEdge = firstEdge
-        thisCell = Cell()
-        thisCell.incEdge = firstEdge
         firstEdge.containCell = thisCell
+        thisCell.incEdge = firstEdge
         thisEdge = firstEdge
-
         cells[i] = thisCell
-        vertsInEdge[1,:] = vertsInCells[1:2]
 
         # Get the edges starting with vertices in the middle
         for j in 2:cellListInfo[2]-1
@@ -125,40 +167,30 @@ function importfromfile(filePath::String)
                 lastVertexCell = j
                 break
             end
-
-            nextEdge = Hedge()
-            nextEdge.originVertex = vertices[vertsInCells[j]]
-            vertices[vertsInCells[j]].leavingEdge = nextEdge
-            nextEdge.containCell = thisCell
-            nextEdge.prevEdge = thisEdge
+            nextEdge = fillnexthedge(thisEdge, vertices[vertsInCells[j]], thisCell)
             thisEdge.nextEdge = nextEdge
+
+            vertices[vertsInCells[j]].leavingEdge = nextEdge
             nEdges += 1
-            provEdges[nEdges] = nextEdge
-            vertsInEdge[nEdges,:] = [vertsInCells[j],vertsInCells[j+1]]
+            edges[nEdges] = nextEdge
             thisEdge = nextEdge
-        end # loop cell vertices
+        end # loop cell vertices,
 
         # Get the edge starting at the last vertex of the cell
-        lastEdge = Hedge()
-        lastEdge.originVertex = vertices[vertsInCells[lastVertexCell]]
-        vertices[vertsInCells[lastVertexCell]].leavingEdge = lastEdge
-        lastEdge.containCell = thisCell
-        provEdges[nEdges].nextEdge = lastEdge
-        lastEdge.prevEdge = provEdges[nEdges]
+        lastEdge = fillnexthedge(thisEdge, vertices[vertsInCells[lastVertexCell]], thisCell)
         lastEdge.nextEdge = firstEdge
         firstEdge.prevEdge = lastEdge
+        thisEdge.nextEdge = lastEdge
+
+        vertices[vertsInCells[lastVertexCell]].leavingEdge = lastEdge
 
         nEdges += 1
-        provEdges[nEdges] = lastEdge
-        provEdges[1] = firstEdge
-        vertsInEdge[nEdges,:] = [vertsInCells[lastVertexCell],vertsInCells[1]]
+        edges[nEdges] = lastEdge
+        edges[1] = firstEdge
     end # loop cell list
 
     # Set the twin edges
-    findtwinedges(provEdges,vertsInEdge,nEdges)
-
-    # Clean edges
-    edges = provEdges[1:nEdges]
+    findtwinedges(edges,vertsInEdge,nEdges)
 
     return Dcel(vertices,edges,cells)
 end # importfromfile
@@ -204,16 +236,14 @@ function updatecell!(cell::Cell)
         sumPerim += distvertices(p1,p2)
         p1 = p2
         edge = edge.nextEdge
-        if(p2 == first)
-            break
-        end
+        if(p2 == first) break end
         p2 = edge.nextEdge.originVertex
     end
 
     # Update the values
     cell.areaCell = sumArea
     cell.perimCell = sumPerim
-    
+
     return cell
 end # updatecell
 
@@ -230,9 +260,11 @@ end
 
 for i in 1:length(system.listCell)
     updatecell!(system.listCell[i])
-    println(system.listCell[i].areaCell)
 end
 
+#print(system.listEdge[1].twinEdge.edgeLen)
+
 # TODO:
-# Export mesh to file
 # Plotting operations for mesh
+# FIX MISSING INFO BUG!!!!
+# Export mesh to file

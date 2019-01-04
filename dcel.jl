@@ -5,7 +5,7 @@ module DCEL
 
 abstract type AbstractDcel end
 
-export importfromfile, newedgelen!, updatecell!, setleavingedge!, Dcel
+export importfromfile, newedgelen!, updatecell!, setleavingedge!, invertcell!, Dcel
 
 # This object holds the cell information
 mutable struct Cell <: AbstractDcel
@@ -105,6 +105,7 @@ end # findtwinedges
 #     end
 # end # assignborders
 
+######################################################################################
 # Acessory function, it feills some of the fields in the next Hedge object
 # Arguments: current edge, vertex object and cell object
 # Return: DCEL object
@@ -115,6 +116,17 @@ function fillnexthedge(this::Hedge, vert::Vertex, cell::Cell)
     next.originVertex = vert
     return next
 end # fillnexthedge
+
+# Acessory function, it feills some of the fields in the first Hedge object
+# Arguments: current edge, vertex object and cell object
+# Return: DCEL object
+function fillnexthedge(vert::Vertex, cell::Cell)
+    next = Hedge()
+    next.containCell = cell
+    next.originVertex = vert
+    return next
+end # fillnexthedge
+######################################################################################
 
 # Gets all verts in edge, the vert reference is the index on the vertex list
 # Arguments: connectivity matrix (from file) and array with # of cells and verts in cells
@@ -161,35 +173,34 @@ function importfromfile(filePath::String)
     # Put edges and cells inside arrays
     cellListInfo = [parse(Int,str) for str in split(popfirst!(allLines))]
     vertsInEdge = getedgeverts(allLines,cellListInfo)
+    show(vertsInEdge)
     vertsInCells = Vector{Int}(undef,cellListInfo[2])
 
     edges = Array{Hedge}(undef,size(vertsInEdge,1))
     cells = Array{Cell}(undef,cellListInfo[1])
-    nEdges = 1
-    lastVertexCell = 1
+    nEdges,lastVertexCell = 1,1
     for i in 1:cellListInfo[1]
         vertsInCells[:] = [parse(Int,str) for str in split(popfirst!(allLines))]
 
         # Get the edge starting at the first vertex of the cell
         thisCell = Cell()
-        firstEdge = Hedge()
+        firstEdge = fillnexthedge(vertices[vertsInCells[1]], thisCell)
         firstEdgeIndex = nEdges
-        firstEdge.originVertex = vertices[vertsInCells[1]]
         setleavingedge!(vertices[vertsInCells[1]],firstEdge)
-        firstEdge.containCell = thisCell
+        println()
+
         thisCell.incEdge = firstEdge
         thisEdge = firstEdge
         cells[i] = thisCell
 
         # Get the edges starting with vertices in the middle
-        for j in 2:cellListInfo[2]-1
-            if(vertsInCells[j+1] < 0 )
+        for j in 2:cellListInfo[2]
+            if(j == cellListInfo[2] || vertsInCells[j+1] < 0)
                 lastVertexCell = j
                 break
             end
             nextEdge = fillnexthedge(thisEdge, vertices[vertsInCells[j]], thisCell)
             thisEdge.nextEdge = nextEdge
-
             setleavingedge!(vertices[vertsInCells[j]],nextEdge)
             nEdges += 1
             edges[nEdges] = nextEdge
@@ -201,9 +212,7 @@ function importfromfile(filePath::String)
         lastEdge.nextEdge = firstEdge
         firstEdge.prevEdge = lastEdge
         thisEdge.nextEdge = lastEdge
-
         setleavingedge!(vertices[vertsInCells[lastVertexCell]],lastEdge)
-
         nEdges += 1
         edges[nEdges] = lastEdge
         edges[firstEdgeIndex] = firstEdge
@@ -223,6 +232,7 @@ function newedgelen!(edge::Hedge)
     p1 = edge.originVertex
     p2 = edge.nextEdge.originVertex
     edge.edgeLen = distvertices(p1,p2)
+    #println(edge.edgeLen)
 end # newedgelen
 
 # Calculate the distance between two vertices
@@ -234,6 +244,7 @@ function distvertices(p1::Vertex,p2::Vertex)
     y1 = p1.y
     x2 = p2.x
     y2 = p2.y
+    #println("Coords: ",x1," ",y1," ",x2," ",y2)
 
     return sqrt((x2-x1)^2 + (y2-y1)^2)
 end # distvertices
@@ -267,22 +278,42 @@ function updatecell!(cell::Cell)
     return cell
 end # updatecell
 
+# Invert the order of the vertices in a cell
+# Arguments: a cell object
+# Return: DCEl object corrected
+# TODO: move to a cell module
+function invertcell!(cell::Cell)
+    edge = cell.incEdge
+    first = edge
+
+    while true
+        edge.nextEdge, edge.prevEdge = edge.prevEdge, edge.nextEdge
+        edge = edge.prevEdge
+        if(edge == first) break end
+    end
+end # invertcell
+
 end # module
 
 using .DCEL
 
 system = importfromfile("/home/jhon/Documents/Projects/vertexModelJulia/tests/ex2.points")
 
+for i in 1:length(system.listCell)
+    updatecell!(system.listCell[i])
+    if(system.listCell[i].areaCell < 0.0)
+        invertcell!(system.listCell[i])
+        updatecell!(system.listCell[i])
+    end
+end
+
 # Update the measurements
 for i in 1:length(system.listEdge)
     newedgelen!(system.listEdge[i])
+    println(system.listEdge[i].edgeLen)
 end
 #println(system.listEdge[187].edgeLen)
 
-for i in 1:length(system.listCell)
-    updatecell!(system.listCell[i])
-    println(system.listCell[i].areaCell)
-end
 
 #print(system.listEdge[1].twinEdge.edgeLen)
 

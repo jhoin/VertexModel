@@ -1,9 +1,8 @@
 # This module hold the vertex information
-
 module Vertex_class
 abstract type AbstractDcel end
 
-export AbstractDcel, Vertex, distvertices, setleavingedge!
+export AbstractDcel, Vertex, createvertex,distvertices, setleavingedge!
 
 mutable struct Vertex <: AbstractDcel
     x::Float64
@@ -11,6 +10,16 @@ mutable struct Vertex <: AbstractDcel
     leavingEdges
 
     Vertex() = new()
+end
+
+# Create a new Vertex object
+# Arguments: coordinates
+# Return: vertex object
+function createvertex(pointCoords::Array{Float,1})
+    vert = Vertex()
+    vert.x = pointCoords[1]
+    vert.y = pointCoords[2]
+    return vert
 end
 
 # Calculate the distance between two vertices
@@ -31,10 +40,9 @@ end # distvertices
 # Return: updated vertex object
 function setleavingedge!(vert,edge)
     for i in 1:3
-        if(!isassigned(vert.leavingEdges,i))
+        if !isassigned(vert.leavingEdges,i)
             vert.leavingEdges[i] = edge
         end
     end
 end # setleavingedge!
-
 end

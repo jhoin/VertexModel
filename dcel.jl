@@ -28,9 +28,7 @@ function getvertexlist(lines::Array{String,1},nPoints::Integer)
     vertices = Array{Vertex}(undef,nPoints)
     for i in 1:nPoints
         pointCoords[:] = [parse(Float64,str) for str in split(popfirst!(lines))]
-        vertex = Vertex()
-        vertex.x = pointCoords[1]
-        vertex.y = pointCoords[2]
+        vertex = createvertex(pointCoords)
         vertex.leavingEdges = Vector{Hedge}(undef,3)
         vertices[i] = vertex
     end # loop points
@@ -151,6 +149,8 @@ function importfromfile(filePath::String)
 end # importfromfile
 
 function updatesystem!(system)
+
+    # Update cells
     for i in 1:length(system.listCell)
         updatecell!(system.listCell[i])
         if(system.listCell[i].areaCell < 0.0)
@@ -158,7 +158,13 @@ function updatesystem!(system)
             updatecell!(system.listCell[i])
         end
     end
-end
+
+    # Update edges
+    for i in 1:length(system.listEdge)
+        newedgelen!(system.listEdge[i])
+        setedgeborder!(system.listEdge[i])
+    end
+end # updatesystem
 
 end # module
 

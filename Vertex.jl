@@ -15,7 +15,7 @@ end
 # Create a new Vertex object
 # Arguments: coordinates
 # Return: vertex object
-function createvertex(pointCoords::Array{Float,1})
+function createvertex(pointCoords)
     vert = Vertex()
     vert.x = pointCoords[1]
     vert.y = pointCoords[2]

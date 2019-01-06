@@ -110,14 +110,15 @@ function importfromfile(filePath::String)
         # Get the edge starting at the first vertex of the cell
         thisCell = Cell()
         firstEdge = fillnexthedge(vertices[vertsInCells[1]], thisCell)
-        firstEdgeIndex = nEdges
         setleavingedge!(vertices[vertsInCells[1]],firstEdge)
+        firstEdgeIndex = nEdges
 
         thisCell.incEdge = firstEdge
         thisEdge = firstEdge
         cells[i] = thisCell
 
         # Get the edges starting with vertices in the middle
+        cellListInfo,vertsInCells,edges,nEdges
         for j in 2:cellListInfo[2]
             if(j == cellListInfo[2] || vertsInCells[j+1] < 0)
                 lastVertexCell = j
@@ -148,6 +149,9 @@ function importfromfile(filePath::String)
     return Dcel(vertices,edges,cells)
 end # importfromfile
 
+# Update the measures of the mesh, namely cell areas and perimeters and edge lens
+# Arguments: DCEL object
+# Return: DCEL object
 function updatesystem!(system)
 
     # Update cells

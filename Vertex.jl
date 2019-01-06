@@ -2,7 +2,7 @@
 module Vertex_class
 abstract type AbstractDcel end
 
-export AbstractDcel, Vertex, createvertex,distvertices, setleavingedge!
+export AbstractDcel, Vertex, createvertex,distvertices, setleavingedge!, rotatepoints!
 
 mutable struct Vertex <: AbstractDcel
     x::Float64
@@ -45,4 +45,24 @@ function setleavingedge!(vert,edge)
         end
     end
 end # setleavingedge!
-end
+
+function rotatepoints!(p1,p2)
+
+    # midpoint
+    cx = (p1.x + p2.x) / 2.0
+    cy = (p1.y + p2.y) / 2.0
+
+    # Change vertex coordinates
+    theta = -1.5
+    x1 = (  (p1.x - cx) * cos(theta) + (p1.y - cy) * sin(theta) ) + cx
+    y1 = ( -(p1.x - cx) * sin(theta) + (p1.y - cy) * cos(theta) ) + cy
+
+    x2 = (  (p2.x - cx) * cos(theta) + (p2.y - cy) * sin(theta) ) + cx
+    y2 = ( -(p2.x - cx) * sin(theta) + (p2.y - cy) * cos(theta) ) + cy
+
+    # update the object
+    p1.x,p1.y = x1,y1
+    p2.x,p2.y = x2,y2
+end # rotatepoints
+
+end # module

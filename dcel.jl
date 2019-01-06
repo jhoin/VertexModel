@@ -11,7 +11,7 @@ using .Cell_class
 using .Vertex_class
 using .Hedge_class
 
-export importfromfile, updatesystem!,Dcel
+export importfromfile, updatesystem!, t1transition!, Dcel
 
 # contains the whole mesh
 mutable struct Dcel
@@ -74,11 +74,13 @@ function getedgeverts(lines::Array{String,1}, info::Array{Int,1})
                 break
             end
             vertsInEdge[nEdges,:] = [vertsInCells[j],vertsInCells[j+1]]
+            #println(vertsInEdge[nEdges,:])
             nEdges += 1
         end # loop cell vertices
 
         # Get the edge starting at the last vertex of the cell
         vertsInEdge[nEdges,:] = [vertsInCells[lastVertexCell],vertsInCells[1]]
+        #println(vertsInEdge[nEdges,:])
     end # loop cell list
 
     return vertsInEdge[1:nEdges,:]
@@ -166,9 +168,55 @@ function updatesystem!(system)
     # Update edges
     for i in 1:length(system.listEdge)
         newedgelen!(system.listEdge[i])
+        #println(system.listEdge[i].edgeLen)
         setedgeborder!(system.listEdge[i])
+        println(system.listEdge[i].border)
     end
+
+    # Look for topological changes
+    #t1transition!(system.listEdge[149])
+    # for i in 1:length(system.listEdge)
+    #     system.listEdge[i].border && continue
+    #     if system.listEdge[i].edgeLen < 0.1
+    #         t1transition!(system.listEdge[i])
+    #     end
+    # end
 end # updatesystem
+
+# Perform t1 transition
+# Arguments:edge object
+# Return: edge object updated
+function t1transition!(focal_edge)
+
+    # Perform the topological changes for the focal edge
+    t1topology!(focal_edge)
+
+    # Perform the topological changes for the focal twin
+    t1topology!(focal_edge.twinEdge)
+
+    # Rotate points
+    p1 = focal_edge.originVertex
+    p2 = focal_edge.nextEdge.originVertex
+
+end # t1transition
+
+# Make the topological changes for the t1 transition
+# Arguments:edge object
+# Return: edge object updated
+function t1topology!(focal_edge)
+
+    # Check if edge is not incident edge of cell
+    focal_cell = focal_edge.containCell
+    if focal_cell.incEdge == focal_edge
+        focal_edge.incEdge = focal_edge.nextEdge
+    end
+
+    # Edge operations
+    edge = focal_edge.prevEdge
+    println(edge.border)
+    edgeremove!(focal_edge)
+    addedgeat!(focal_edge, edge)
+end # t1topolgy
 
 end # module
 

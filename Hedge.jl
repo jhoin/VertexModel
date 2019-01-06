@@ -1,7 +1,7 @@
 # This module holds the half edge information
 module Hedge_class
 
-export Hedge, newedgelen!, setedgeborder!, fillnexthedge
+export Hedge, newedgelen!, setedgeborder!, edgeremove!, addedgeat!, fillnexthedge
 
 include("./Vertex.jl")
 using .Vertex_class
@@ -57,4 +57,21 @@ function newedgelen!(edge)
     edge.edgeLen = distvertices(p1,p2)
 end # newedgelen
 
-end
+# Remove edge from cell
+# Arguments: edge object
+# Return: edge object
+function edgeremove!(edge)
+    edge.prevEdge.nextEdge = edge.nextEdge
+end # edgeremove
+
+# Add edge into cell before indicated edge
+# Arguments: edge to be added, and edge that will come after the given edge
+# Return: edge object
+function addedgeat!(focal_edge,next_edge)
+    next_edge.originVertex = focal_edge.nextEdge.originVertex
+    focal_edge.nextEdge = next_edge
+    focal_edge.prevEdge = next_edge.prevEdge
+    next_edge.prevEdge = focal_edge
+end # addedgeat
+
+end # module

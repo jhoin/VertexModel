@@ -36,24 +36,6 @@ function getvertexlist(lines::Array{String,1},nPoints::Integer)
     return vertices
 end # getvertexlist
 
-# Find the twins of edges in list of edges
-# Arguments: array of vertex index in each edge, number or edges
-# Return: list of edge objects
-function findtwinedges!(provEdges::Vector{Hedge}, vertsInEdge::Array{Int64,2},nEdges::Integer)
-    for i in 1:nEdges
-        verts = reverse(vertsInEdge[i,:])
-        for j in 1:nEdges
-            all(verts == 0) && break
-            i == j && continue
-            found = all(vertsInEdge[j,:] == verts)
-            if(found)
-                provEdges[i].twinEdge = provEdges[j]
-                break
-            end
-        end
-    end # loop edges
-end # findtwinedges
-
 # Gets all verts in edge, the vert reference is the index on the vertex list
 # Arguments: connectivity matrix (from file) and array with # of cells and verts in cells
 # Return: Vector with the vertex in each edge
@@ -62,8 +44,7 @@ function getedgeverts(lines::Array{String,1}, info::Array{Int,1})
     vertsInCells = Vector{Int}(undef,info[2])
     vertsInEdge = Array{Int}(undef,info[1]*info[2],2)
     fill!(vertsInEdge,0)
-    nEdges = 1
-    lastVertexCell = 1
+    nEdges,lastVertexCell = 1,1
     for i in 1:info[1]
         vertsInCells[:] = [parse(Int,str) for str in split(lines[i])]
 
@@ -74,22 +55,158 @@ function getedgeverts(lines::Array{String,1}, info::Array{Int,1})
                 break
             end
             vertsInEdge[nEdges,:] = [vertsInCells[j],vertsInCells[j+1]]
-            #println(vertsInEdge[nEdges,:])
             nEdges += 1
         end # loop cell vertices
 
         # Get the edge starting at the last vertex of the cell
         vertsInEdge[nEdges,:] = [vertsInCells[lastVertexCell],vertsInCells[1]]
-        #println(vertsInEdge[nEdges,:])
     end # loop cell list
 
     return vertsInEdge[1:nEdges,:]
 end # getedgeverts
 
+# Gets all verts in a cell, the vert reference is the index on the vertex list
+# Arguments: connectivity matrix (from file)
+# Return: Vector of vectors with the vertex in each cell for all cells
+function getcellverts(lines, info)
+    cellverts = []
+    vertsInCells = Vector{Int}(undef,info[2])
+    for i in 1:info[1]
+        vertsInCells[:] = [parse(Int,str) for str in split(lines[i])]
+        push!(cellverts,vertsInCells[vertsInCells .> 0])
+    end
+    return cellverts
+end
+
+# Gets the number of verts in each cell
+# Arguments: connectivity matrix
+# Return: vector with cell sizes
+function getcellsizes(cellverts)
+    cellsizes = Vector{Int64}(undef,size(cellverts))
+    for i in 1:size(cellverts)[1]
+        cellsizes[i] = size(cellverts[i])[1]
+    end
+    return cellsizes
+end # getcellsizes
+
+# Build the verts of edge table, and then
+# Arguments: vertices in each cell
+# Return: verts in each edge foe all edges
+function getedgeverts(cellverts)
+    edgeverts = []
+    for i in 1:size(cellverts,1)
+        for j in 1:size(cellverts[i],1)-1
+            push!(edgeverts,[cellverts[i][j], cellverts[i][j+1]])
+        end
+        push!(edgeverts,[cellverts[i][size(cellverts[i],1)], cellverts[i][1]])
+    end
+    return edgeverts
+end # getedgeverts
+
+# Create list of edges and assign the origin vertex to all of them
+# Arguments: edge list, vertex list and vertsInEdge table
+# Return: edge list updated
+function findorigin!(edges, vertices, vertsInEdge)
+    for i in 1:size(vertsInEdge,1)
+        edges[i] = Hedge()
+        vert = vertices[vertsInEdge[i,1]]
+        edges[i].originVertex = vertices[vertsInEdge[i,1]][1]
+    end
+end # findorigin
+
+# Assign the next edge field in list of edges
+# NOTE: This function requires a list of the number of vertices per cell
+# Arguments: edge list, list of cell sizes and vertsInEdge table
+# Return: edge list updated
+function findnext!(edges, vertsInEdge, cellsizes)
+    edgecell = 1 # count the number of edges that I intereact in a cell
+    icell = 1 # count the cells
+    for i in 1:size(vertsInEdge,1)
+        if edgecell == cellsizes[icell]
+            edges[i].nextEdge = edges[i-cellsizes[icell]+1]
+            icell += 1
+            edgecell = 1
+            continue
+        end
+        edges[i].nextEdge = edges[i+1]
+        edgecell += 1
+    end
+end # findnext
+
+# Assign the previous edge field in list of edges
+# NOTE: This function requires a list of the number of vertices per cell
+# Arguments: edge list, list of cell sizes and vertsInEdge table
+# Return: edge list updated
+function findprevious!(edges, vertsInEdge, cellsizes)
+    edgecell = 1 # count the number of edges that I intereact in a given cell
+    icell = 1  # count the cells
+    for i in reverse(1:size(vertsInEdge,1))
+        if edgecell == cellsizes[icell]
+            edges[i].prevEdge = edges[i+cellsizes[icell]-1]
+            icell += 1
+            edgecell = 1
+            continue
+        end
+        edges[i].prevEdge = edges[i-1]
+        edgecell += 1
+    end
+end # findnext
+
+# Find the twins of edges in list of edges
+# Arguments: array of vertex index in each edge, number or edges
+# Return: list of edge objects
+function findtwinedges!(provEdges, vertsInEdge,nEdges)
+    ntwins = 0
+    for i in 1:nEdges
+        verts = reverse(vertsInEdge[i,:][1])
+        println(verts)
+        for j in 1:nEdges
+            all(verts == 0) && break
+            i == j && continue
+            found = all(vertsInEdge[j,:][1] == verts)
+            if(found)
+                provEdges[i].twinEdge = provEdges[j]
+                ntwins += 1
+                break
+            end
+        end
+    end
+    println("Twins: ", ntwins)
+end # findtwinedges!
+
+# Find the container cell of each edge
+# Arguments: edges list, cell list and cell sizes
+# Return: list of edge objects updated
+function findcontainercell!(edges, cells, cellsizes)
+    edgeid = 1
+    cellid = 1
+    for i in 1:size(edges,1)
+        if edgeid == size(cellsizes[cellid],1)
+            edgeid = 1
+            cellid += 1
+        end
+        edges[edgeid].containCell = cells[cellid]
+        edgeid += 1
+    end
+end
+
+# Create the list of cells and assign the incident edge for each cell
+# Arguments: cell list, edge list and list of cell sizes
+# Return: cell list updated
+function createlistcell(edges, cellsizes)
+    cells =  Array{Cell}(undef,size(cellsizes,1))
+    edgeid = 1
+    for i in 1:size(cellsizes,1)
+        cells[i] = Cell()
+        cells[i].incEdge = edges[edgeid]
+        edgeid += size(cellsizes[i],1)-1
+    end
+    return cells
+end # createlistcell
+
 # Import mesh from file, and represent it as a DCEL object
 # Arguments: file path
 # Return: DCEL object
-# TODO: break this function down... it's too long
 function importfromfile(filePath::String)
     inFile = open(filePath)
     allLines = readlines(inFile)
@@ -100,53 +217,23 @@ function importfromfile(filePath::String)
 
     # Put edges and cells inside arrays
     cellListInfo = [parse(Int,str) for str in split(popfirst!(allLines))]
-    vertsInEdge = getedgeverts(allLines,cellListInfo)
-    vertsInCells = Vector{Int}(undef,cellListInfo[2])
+    #vertsInEdge = getedgeverts(allLines,cellListInfo)
+    cellverts = getcellverts(allLines,cellListInfo)
+    cellsizes = getcellsizes(cellverts)
+    vertsInEdge = getedgeverts(cellverts)
 
+    # Create list of edges
     edges = Array{Hedge}(undef,size(vertsInEdge,1))
-    cells = Array{Cell}(undef,cellListInfo[1])
-    nEdges,lastVertexCell = 1,1
-    for i in 1:cellListInfo[1]
-        vertsInCells[:] = [parse(Int,str) for str in split(popfirst!(allLines))]
+    findorigin!(edges, vertices, vertsInEdge)
+    findnext!(edges, vertsInEdge, cellsizes)
+    findprevious!(edges, vertsInEdge, cellsizes)
+    findtwinedges!(edges,vertsInEdge,size(vertsInEdge,1))
 
-        # Get the edge starting at the first vertex of the cell
-        thisCell = Cell()
-        firstEdge = fillnexthedge(vertices[vertsInCells[1]], thisCell)
-        setleavingedge!(vertices[vertsInCells[1]],firstEdge)
-        firstEdgeIndex = nEdges
+    # Create list of cells
+    cells = createlistcell(edges,cellsizes)
 
-        thisCell.incEdge = firstEdge
-        thisEdge = firstEdge
-        cells[i] = thisCell
-
-        # Get the edges starting with vertices in the middle
-        cellListInfo,vertsInCells,edges,nEdges
-        for j in 2:cellListInfo[2]
-            if(j == cellListInfo[2] || vertsInCells[j+1] < 0)
-                lastVertexCell = j
-                break
-            end
-            nextEdge = fillnexthedge(thisEdge, vertices[vertsInCells[j]], thisCell)
-            thisEdge.nextEdge = nextEdge
-            setleavingedge!(vertices[vertsInCells[j]],nextEdge)
-            nEdges += 1
-            edges[nEdges] = nextEdge
-            thisEdge = nextEdge
-        end # loop cell vertices,
-
-        # Get the edge starting at the last vertex of the cell
-        lastEdge = fillnexthedge(thisEdge, vertices[vertsInCells[lastVertexCell]], thisCell)
-        lastEdge.nextEdge = firstEdge
-        firstEdge.prevEdge = lastEdge
-        thisEdge.nextEdge = lastEdge
-        setleavingedge!(vertices[vertsInCells[lastVertexCell]],lastEdge)
-        nEdges += 1
-        edges[nEdges] = lastEdge
-        edges[firstEdgeIndex] = firstEdge
-    end # loop cell list
-
-    # Set the twin edges
-    findtwinedges!(edges,vertsInEdge,nEdges)
+    # connect cells and edges lists
+    findcontainercell!(edges,cells,cellsizes)
 
     return Dcel(vertices,edges,cells)
 end # importfromfile
@@ -166,9 +253,9 @@ function updatesystem!(system)
     end
 
     # Update edges
+    println(length(system.listEdge))
     for i in 1:length(system.listEdge)
         newedgelen!(system.listEdge[i])
-        #println(system.listEdge[i].edgeLen)
         setedgeborder!(system.listEdge[i])
         println(system.listEdge[i].border)
     end
@@ -213,7 +300,6 @@ function t1topology!(focal_edge)
 
     # Edge operations
     edge = focal_edge.prevEdge
-    println(edge.border)
     edgeremove!(focal_edge)
     addedgeat!(focal_edge, edge)
 end # t1topolgy
@@ -222,7 +308,7 @@ end # module
 
 using .DCEL
 
-system = importfromfile("/home/jhon/Documents/Projects/vertexModelJulia/tests/ex2.points")
+system = importfromfile("/home/jhon/Documents/Projects/vertexModelJulia/tests/ex3.points")
 updatesystem!(system)
 
 # TODO:

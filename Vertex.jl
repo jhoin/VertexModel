@@ -12,6 +12,8 @@ mutable struct Vertex <: AbstractDcel
     Vertex() = new()
 end
 
+x(vert::Vertex) = vert.x
+
 # Create a new Vertex object
 # Arguments: coordinates
 # Return: vertex object
@@ -46,6 +48,20 @@ function setleavingedge!(vert,edge)
     end
 end # setleavingedge!
 
+# Find a vertex in a list of vertices and return its index
+# Arguments: vertex, list of vertices
+# Return: vert index or  if not found
+function findthisvert(vert, vertices)
+    found = 0 # index
+    for i in 1:size(vertices,1)
+        found = i
+        vert == vertices[i] && break
+        found = 0
+    end
+    return found
+end # findthisvert
+export findthisvert
+
 function rotatepoints!(p1,p2)
 
     # midpoint
@@ -64,5 +80,7 @@ function rotatepoints!(p1,p2)
     p1.x,p1.y = x1,y1
     p2.x,p2.y = x2,y2
 end # rotatepoints
+
+
 
 end # module

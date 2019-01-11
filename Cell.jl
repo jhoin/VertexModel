@@ -4,7 +4,7 @@ module Cell_class
 
 include("./Vertex.jl")
 using .Vertex_class
-export Cell, updatecell!, invertcell!
+export Cell
 
 # This object holds the cell information
 mutable struct Cell <: AbstractDcel
@@ -42,6 +42,7 @@ function updatecell!(cell)
 
     return cell
 end # updatecell
+export updatecell!
 
 # Invert the order of the vertices in a cell
 # Arguments: a cell object
@@ -55,5 +56,26 @@ function invertcell!(cell)
         if(edge == first) break end
     end
 end # invertcell
+export invertcell!
+
+# Transverse a cell and return the list of vertices
+# Arguments: a cell object
+# Return: list of vertices objects
+function getcellverts(cell::Cell)
+    verts = Vector{Vertex}()
+    edge = cell.incEdge
+    vert = edge.originVertex
+    first = vert
+    while true
+        println(typeof(verts))
+        push!(verts,vert)
+        edge = edge.nextEdge
+        vert = edge.nextEdge.originVertex
+        if(vert == first) break end
+    end
+    return verts
+end # getcellverts
+export getcellverts
+
 
 end

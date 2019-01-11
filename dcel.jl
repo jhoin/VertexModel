@@ -10,6 +10,7 @@ include("Hedge.jl")
 using .Cell_class
 using .Vertex_class
 using .Hedge_class
+using DelimitedFiles
 
 export importfromfile, updatesystem!, t1transition!, Dcel
 
@@ -76,7 +77,7 @@ function getcellverts(lines, info)
         push!(cellverts,vertsInCells[vertsInCells .> 0])
     end
     return cellverts
-end
+end # getcellverts
 
 # Gets the number of verts in each cell
 # Arguments: connectivity matrix
@@ -159,7 +160,6 @@ function findtwinedges!(provEdges, vertsInEdge,nEdges)
     ntwins = 0
     for i in 1:nEdges
         verts = reverse(vertsInEdge[i,:][1])
-        println(verts)
         for j in 1:nEdges
             all(verts == 0) && break
             i == j && continue
@@ -171,7 +171,6 @@ function findtwinedges!(provEdges, vertsInEdge,nEdges)
             end
         end
     end
-    println("Twins: ", ntwins)
 end # findtwinedges!
 
 # Find the container cell of each edge
@@ -217,7 +216,6 @@ function importfromfile(filePath::String)
 
     # Put edges and cells inside arrays
     cellListInfo = [parse(Int,str) for str in split(popfirst!(allLines))]
-    #vertsInEdge = getedgeverts(allLines,cellListInfo)
     cellverts = getcellverts(allLines,cellListInfo)
     cellsizes = getcellsizes(cellverts)
     vertsInEdge = getedgeverts(cellverts)
@@ -241,7 +239,7 @@ end # importfromfile
 # Update the measures of the mesh, namely cell areas and perimeters and edge lens
 # Arguments: DCEL object
 # Return: DCEL object
-function updatesystem!(system)
+function updatesystem!(system::Dcel)
 
     # Update cells
     for i in 1:length(system.listCell)
@@ -253,11 +251,9 @@ function updatesystem!(system)
     end
 
     # Update edges
-    println(length(system.listEdge))
     for i in 1:length(system.listEdge)
         newedgelen!(system.listEdge[i])
         setedgeborder!(system.listEdge[i])
-        println(system.listEdge[i].border)
     end
 
     # Look for topological changes
@@ -269,6 +265,38 @@ function updatesystem!(system)
     #     end
     # end
 end # updatesystem
+
+# Export Dcel object to file
+# Arguments: file path
+# Return: DCEL object
+function exporttofile(mesh::Dcel)
+
+    # Create the coordinates list
+    coords = Array{Float64}(undef, size(mesh.listVert,1), 2)
+    for i in 1:size(mesh.listVert,1)
+        coords[i,:] = [mesh.listVert[i].x, mesh.listVert[i].y]
+    end
+
+    # Create the connectivity list
+    celltab = []
+    for i in 1:size(mesh.listCell, 1)
+        verts_cells = Cell_class.getcellverts(mesh.listCell[i])
+        println(size(verts_cells,1))
+        vertids = [findthisvert(verts_cells[vert], mesh.listVert) for vert in 1:size(verts_cells,1)]
+        #println(size(verts_cells,1))
+        append!(celltab, vertids)
+    end
+
+    #println(celltab)
+
+    open("/home/jhon/Documents/Projects/vertexModelJulia/tests/ex3_out.txt", "w") do out
+        write(out, size(mesh.listVert,1))
+        writedlm(out, coords)
+        write(out, size(mesh.listCell,1))
+        writedlm(out, celltab)
+    end
+end # exporttofile
+export exporttofile
 
 # Perform t1 transition
 # Arguments:edge object
@@ -310,8 +338,8 @@ using .DCEL
 
 system = importfromfile("/home/jhon/Documents/Projects/vertexModelJulia/tests/ex3.points")
 updatesystem!(system)
+exporttofile(system)
 
 # TODO:
-# Split the file into modules
 # Plotting operations for mesh
 # Export mesh to file

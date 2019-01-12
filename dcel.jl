@@ -338,23 +338,6 @@ function newedgelen!(edge)
     edge.edgeLen = distvertices(p1,p2)
 end # newedgelen
 
-# Remove edge from cell
-# Arguments: edge object
-# Return: edge object
-function edgeremove!(edge)
-    edge.prevEdge.nextEdge = edge.nextEdge
-end # edgeremove
-
-# Add edge into cell before indicated edge
-# Arguments: edge to be added, and edge that will come after the given edge
-# Return: edge object
-function addedgeat!(focal_edge,next_edge)
-    next_edge.originVertex = focal_edge.nextEdge.originVertex
-    focal_edge.nextEdge = next_edge
-    focal_edge.prevEdge = next_edge.prevEdge
-    next_edge.prevEdge = focal_edge
-end # addedgeat
-
 # Create the list of cells and assign the incident edge for each cell
 # Arguments: cell list, edge list and list of cell sizes
 # Return: cell list updated
@@ -447,19 +430,11 @@ function exporttofile(mesh::Dcel)
     # Create the connectivity list
     celltab = []
     for cell in 1:size(mesh.listCell,1)
-        #println(mesh.listCell[cell] == mesh.listCell[cell+1])
-        #println("Area: ",mesh.listCell[cell].areaCell)
         verts_cells = getcellverts(mesh.listCell[cell])
         vertids = [findthisvert(verts_cells[vert], mesh.listVert) for vert in 1:size(verts_cells,1)]
-        #println("index: ",cell)
         push!(celltab, vertids)
     end
 
-    #println(celltab)
-
-    open("/home/jhon/Documents/Projects/vertexModelJulia/tests/ex3_out.txt", "w") do out
-        #println(size(mesh.listVert,1))
-        write(out, size(mesh.listVert,1))
     open("/home/jhon/Documents/Projects/vertexModelJulia/results/ex3_out.txt", "w") do out
         nvert = size(mesh.listVert,1)
         write(out, "$nvert\n")
@@ -471,39 +446,6 @@ function exporttofile(mesh::Dcel)
 end # exporttofile
 export exporttofile
 
-# Perform t1 transition
-# Arguments:edge object
-# Return: edge object updated
-function t1transition!(focal_edge)
-
-    # Perform the topological changes for the focal edge
-    t1topology!(focal_edge)
-
-    # Perform the topological changes for the focal twin
-    t1topology!(focal_edge.twinEdge)
-
-    # Rotate points
-    p1 = focal_edge.originVertex
-    p2 = focal_edge.nextEdge.originVertex
-
-end # t1transition
-
-# Make the topological changes for the t1 transition
-# Arguments:edge object
-# Return: edge object updated
-function t1topology!(focal_edge)
-
-    # Check if edge is not incident edge of cell
-    focal_cell = focal_edge.containCell
-    if focal_cell.incEdge == focal_edge
-        focal_edge.incEdge = focal_edge.nextEdge
-    end
-
-    # Edge operations
-    edge = focal_edge.prevEdge
-    edgeremove!(focal_edge)
-    addedgeat!(focal_edge, edge)
-end # t1topolgy
 
 end # module
 

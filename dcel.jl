@@ -460,8 +460,12 @@ function exporttofile(mesh::Dcel)
     open("/home/jhon/Documents/Projects/vertexModelJulia/tests/ex3_out.txt", "w") do out
         #println(size(mesh.listVert,1))
         write(out, size(mesh.listVert,1))
+    open("/home/jhon/Documents/Projects/vertexModelJulia/results/ex3_out.txt", "w") do out
+        nvert = size(mesh.listVert,1)
+        write(out, "$nvert\n")
         writedlm(out, coords)
-        write(out, size(mesh.listCell,1))
+        ncell = size(mesh.listCell,1)
+        write(out, "$ncell\n")
         writedlm(out, celltab)
     end
 end # exporttofile

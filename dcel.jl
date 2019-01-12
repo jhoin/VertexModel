@@ -365,7 +365,7 @@ function createlistcell(edges, cellsizes)
         #println("index: ",i)
         cells[i] = Cell()
         cells[i].incEdge = edges[edgeid]
-        edgeid += size(cellsizes[i],1)
+        edgeid += cellsizes[i]
     end
     return cells
 end # createlistcell

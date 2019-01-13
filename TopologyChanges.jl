@@ -11,12 +11,11 @@ function update_topology!(mesh, minlen)
     # Check for t1 transitions
     for i in 1:size(mesh.listEdge,1)
         if mesh.listEdge[i].border
-            println("Found border")
             continue
         end
         if mesh.listEdge[i].edgeLen < minlen
-            t1transition!(mesh.listEdge[i])
-            break
+            t1transition!(mesh.listEdge[i], minlen)
+            #break
         end
     end
 end #update_topology
@@ -25,7 +24,7 @@ export update_topology!
 # Perform t1 transition
 # Arguments:edge object
 # Return: edge object updated
-function t1transition!(focal_edge)
+function t1transition!(focal_edge,minlen)
 
     # Rotate points
     p1 = focal_edge.originVertex
@@ -41,6 +40,29 @@ function t1transition!(focal_edge)
     # Update edge length
     extend_edge(focal_edge, minlen)
 end # t1transition
+
+# Rotate an edge around a middle point
+# Arguments: two vertices
+# Return: vertices with positions updated
+function rotatepoints!(p1,p2)
+
+    # midpoint
+    cx = (p1.x + p2.x) / 2.0
+    cy = (p1.y + p2.y) / 2.0
+
+    # Change vertex coordinates
+    theta = -1.5
+    x1 = (  (p1.x - cx) * cos(theta) + (p1.y - cy) * sin(theta) ) + cx
+    y1 = ( -(p1.x - cx) * sin(theta) + (p1.y - cy) * cos(theta) ) + cy
+
+    x2 = (  (p2.x - cx) * cos(theta) + (p2.y - cy) * sin(theta) ) + cx
+    y2 = ( -(p2.x - cx) * sin(theta) + (p2.y - cy) * cos(theta) ) + cy
+
+    # update the object
+    p1.x,p1.y = x1,y1
+    p2.x,p2.y = x2,y2
+end # rotatepoints
+
 
 # Extend an edge and its twin in 50% the minimum edge lenght
 # Arguments: edge

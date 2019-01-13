@@ -405,15 +405,6 @@ function updatesystem!(system::Dcel)
         newedgelen!(system.listEdge[i])
         setedgeborder!(system.listEdge[i])
     end
-
-    # Look for topological changes
-    #t1transition!(system.listEdge[149])
-    # for i in 1:length(system.listEdge)
-    #     system.listEdge[i].border && continue
-    #     if system.listEdge[i].edgeLen < 0.1
-    #         t1transition!(system.listEdge[i])
-    #     end
-    # end
 end # updatesystem
 
 # Export Dcel object to file

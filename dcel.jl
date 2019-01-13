@@ -1,13 +1,11 @@
 # This module contains the doubly-connected edge list data structure
 # It is a provisory file, each object will be moved to its respective file in the near future
-
 module DCEL
 
 using DelimitedFiles
 
-export importfromfile, updatesystem!, t1transition!, Dcel
+export importfromfile, updatesystem!, t1transition!
 abstract type AbstractDcel end
-
 
 mutable struct Vertex <: AbstractDcel
     x::Float64
@@ -16,6 +14,7 @@ mutable struct Vertex <: AbstractDcel
 
     Vertex() = new()
 end
+export Cell
 
 # This object holds the half edge information
 mutable struct Hedge <: AbstractDcel
@@ -29,6 +28,7 @@ mutable struct Hedge <: AbstractDcel
 
     Hedge() = new()
 end
+export Hedge
 
 # This object holds the cell information
 mutable struct Cell <: AbstractDcel
@@ -38,6 +38,7 @@ mutable struct Cell <: AbstractDcel
 
     Cell() = new()
 end
+export Cell
 
 # contains the whole mesh
 mutable struct Dcel
@@ -45,6 +46,7 @@ mutable struct Dcel
     listEdge::Vector{Hedge}
     listCell::Vector{Cell}
 end
+export Dcel
 
 # Create list of vertices
 # Arguments: array of lines containing vertex coordinates
@@ -58,7 +60,6 @@ function getvertexlist(lines::Array{String,1},nPoints::Integer)
         vertex.leavingEdges = Vector{Hedge}(undef,3)
         vertices[i] = vertex
     end # loop points
-
     return vertices
 end # getvertexlist
 
@@ -165,7 +166,7 @@ end # updatecell
 
 # Invert the order of the vertices in a cell
 # Arguments: a cell object
-# Return: DCEl object corrected
+# Return: cell object corrected
 function invertcell!(cell)
     edge = cell.incEdge
     first = edge
@@ -182,20 +183,16 @@ end # invertcell
 function getcellverts(cell::Cell)
     verts = Vector{Vertex}()
     edge = cell.incEdge
-    #println("esge blongs to this cell: ", edge.containCell == cell)
     vert = edge.originVertex
     first = edge
     while true
         push!(verts,vert)
         edge = edge.nextEdge
-        #println("edge len: ", edge.edgeLen)
         if(edge == first)
-            #println("first edge len conditional: ", edge.edgeLen)
             break
         end
         vert = edge.originVertex
     end
-    #println("n of verts cell: ",size(verts,1))
     return verts
 end # getcellverts
 
@@ -314,6 +311,7 @@ function newedgelen!(edge)
     p2 = edge.nextEdge.originVertex
     edge.edgeLen = distvertices(p1,p2)
 end # newedgelen
+export newedgelen!
 
 # Create the list of cells and assign the incident edge for each cell
 # Arguments: cell list, edge list and list of cell sizes
@@ -322,7 +320,6 @@ function createlistcell(edges, cellsizes)
     cells =  Array{Cell}(undef,size(cellsizes,1))
     edgeid = 1
     for i in 1:size(cellsizes,1)
-        #println("index: ",i)
         cells[i] = Cell()
         cells[i].incEdge = edges[edgeid]
         edgeid += cellsizes[i]
@@ -414,15 +411,7 @@ function exporttofile(mesh::Dcel)
 end # exporttofile
 export exporttofile
 
-
 end # module
-
-using .DCEL
-
-system = importfromfile("/home/jhon/Documents/Projects/vertexModelJulia/results/ex3.points")
-updatesystem!(system)
-exporttofile(system)
 
 # TODO:
 # Plotting operations for mesh
-# Export mesh to file

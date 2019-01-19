@@ -35,6 +35,8 @@ mutable struct Cell <: AbstractDcel
     incEdge
     perimCell::Float64
     areaCell::Float64
+    cx::Float64
+    cy::Float64
 
     Cell() = new()
 end
@@ -144,6 +146,8 @@ function updatecell!(cell)
     p1 = edge.originVertex
     sumArea = 0.0
     sumPerim = 0.0
+    xcent = 0.0
+    ycent = 0.0
     first = p1
     p2 = edge.nextEdge.originVertex
 
@@ -151,6 +155,8 @@ function updatecell!(cell)
     while true
         sumArea += p1.x*p2.y - p2.x*p1.y
         sumPerim += distvertices(p1,p2)
+        xcent += (p1.x + p2.x) * (p1.x*p2.y - p2.x*p1.y)
+        ycent += (p1.y + p2.y) * (p1.x*p2.y - p2.x*p1.y)
         p1 = p2
         edge = edge.nextEdge
         if(p2 == first) break end
@@ -159,6 +165,8 @@ function updatecell!(cell)
 
     # Update the values
     cell.areaCell = 0.5*sumArea
+    cell.cx = 1.0/(6.0*cell.areaCell)*xcent
+    cell.cy = 1.0/(6.0*cell.areaCell)*ycent
     cell.perimCell = sumPerim
 
     return cell
@@ -368,6 +376,7 @@ function updatesystem!(system::Dcel)
     # Update cells
     for i in 1:length(system.listCell)
         updatecell!(system.listCell[i])
+        println(system.listCell[i].cx,"  ",system.listCell[i].cy)
         # if(system.listCell[i].areaCell < 0.0)
         #     invertcell!(system.listCell[i])
         #     updatecell!(system.listCell[i])
@@ -414,4 +423,5 @@ export exporttofile
 end # module
 
 # TODO:
+# Write iterators to loop over all vertices of a given cell
 # Plotting operations for mesh

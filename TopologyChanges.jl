@@ -130,4 +130,41 @@ function addedgeat!(focal_edge, next_edge)
     next_edge.prevEdge = focal_edge
 end # addedgeat
 
+# Perform a cell division
+# Arguments: mesh object
+# Return: mesh object updated
+function cell_division!(mesh, cell)
+    edge = cell.incEdge
+    p1 = edge.originVertex
+    first = p1
+    p2 = edge.nextEdge.originVertex
+
+    # Get the inertia tensor
+    ixx,ixy, iyy = 0.0,0.0,0.0
+    while true
+        ixx += (p1.x*p2.y - p2.x*p1.y)*((p1.y)^2 + p1.y*p2.y + (p2.y)^2)
+        iyy += (p1.x*p2.y - p2.x*p1.y)*((p1.x)^2 + p1.x*p2.x + (p2.x)^2)
+        ixy += (p1.x*p2.y - p2.x*p1.y)*(p1.x*p2.y + 2.0*p1.x*p1.y + 2.0*p2.x*p2.y + p2.x*p1.y)
+        p1 = p2
+        edge = edge.nextEdge
+        if(p2 == first) break end
+        p2 = edge.nextEdge.originVertex
+    end
+    ixx = ixx/12.0
+    iyy = iyy/12.0
+    ixy = ixy/24.0
+    inertia_matrix = [ixx -ixy; -ixy  iyy]
+    display(inertia_matrix)
+    #print("\n")
+    axisdivision_angle = eigen(inertia_matrix)
+    #println(axisdivision_angle.vectors[:,2])
+    centroid_displace = [axisdivision_angle[1] + cell.cx, axisdivision_angle[1] + cell.cy]
+    c2 = createvertex(centroid_displace)
+
+end # cell_division!
+
+# Write a vector to a file
+# Arguments: vectorin the format: [xorig, yorig, ]
+# Return: mesh object updated
+
 end # module

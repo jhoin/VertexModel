@@ -144,17 +144,119 @@ function cell_division!(mesh, cell)
     iyy = iyy/12.0
     ixy = ixy/24.0
     inertia_matrix = [ixx -ixy; -ixy  iyy]
-    display(inertia_matrix)
-    #print("\n")
-    axisdivision_angle = eigen(inertia_matrix)
-    #println(axisdivision_angle.vectors[:,2])
-    centroid_displace = [axisdivision_angle[1] + cell.cx, axisdivision_angle[1] + cell.cy]
+    inertia_eigen = eigen(inertia_matrix)
+    axis_angle = inertia_eigen.vectors[:,2]
+
+    centroid_displace = [axis_angle[1]*1.0, axis_angle[2]*1.0]
     c2 = createvertex(centroid_displace)
 
+    # Get the slope of the division axis
+    println(  lineslope(cell.centroid, c2))
+
+    # Get intersect of the division axis
+    #axis_ysect = yintersect(cell.centroid, c2)
+
+    # loop over edges of cell and look for
+    edge = cell.incEdge
+    first_edge = edge
+    while true
+        #edgeslope = lineslope(edge.originVertex, edge.nextEdge.originVertex)
+        #edge_ysect = yintersect(edge.originVertex, edge.nextEdge.originVertex)
+        #intersect_point = lineintersect(slopeaxis, edgeslope, axis_ysect, edge_ysect)
+        intersect = intersection(edge.originVertex, edge.nextEdge.originVertex, cell.centroid, c2)
+        #println(intersect.x, " ", edge.edgeLen)
+        #isvert_inedge(edge, intersect, 0.5) && push!(mesh.listVert, intersect)
+        isBetween(edge.originVertex, edge.nextEdge.originVertex, intersect) && push!(mesh.listVert, intersect)
+        edge = edge.nextEdge
+        if(edge == first_edge) break end
+
+        #!is_inline(edgeslope, edge_ysect, intersect_point) && continue
+    end
 end # cell_division!
 
-# Write a vector to a file
-# Arguments: vectorin the format: [xorig, yorig, ]
-# Return: mesh object updated
+# Compute slope of a line equation formed by two points
+# Arguments: two vertex objects
+# Return: a float containing the slope
+function lineslope(p1, p2)
+    return (p2.y - p1.y)/(p2.x - p1.x)
+end # lineslope
+
+# Compute intersect of the line equation in the y axis given a point and slope
+# Arguments: vertex object and line slope
+# Return: a float containing the intersect
+function yintersect(p, slope)
+    return p.y - slope*p.x
+end # yintersect
+
+function yintersect(p1, p2)
+    return (p1.x*p2.y - p1.y*p2.x) / (p1.x - p2.x)
+end
+
+# Compute the intersection point between two lines
+# Arguments: slopes and intercepts of the lines
+# Return: a vertex object of the point
+function lineintersect(slope1, slope2, sect1, sect2)
+    x = (sect2 - sect1) / (slope1 - slope2)
+    y = (slope1*sect2 - slope2*sect1) / (slope1 - slope2)
+    return createvertex([x, y])
+end # lineintersect
+
+function lineintersect(p1, p2, p3, p4)
+    x_num = (p1.x*p2.y - p1.y*p2.x)*(p3.x - p4.x) - (p1.x - p2.x)*(p3.x*p4.y - p3.y*p4.x)
+    y_num = (p1.x*p2.y - p1.y*p2.x)*(p3.y - p4.y) - (p1.y - p2.y)*(p3.x*p4.y - p3.y*p4.x)
+    den = (p1.x - p2.x)*(p3.y - p4.y) - (p1.y - p2.y)*(p3.x - p4.x)
+    return createvertex([x_num/den, y_num/den])
+end
+
+function is_inline(slope, sect, p)
+    y2 = slope*p.x + sect
+    return (p.y-y2) < eps()
+end
+
+function intersection(p1, p2, p3, p4)
+    a1 = p2.y - p1.y
+    b1 = p1.x - p2.x
+    c1 = a1 * p1.x + b1 * p1.y
+
+    a2 = p4.y - p3.y
+    b2 = p3.x - p4.x
+    c2 = a2 * p3.x + b2 * p3.y
+
+    delta = a1 * b2 - a2 * b1
+    # If lines are parallel, intersection point will contain infinite values
+    return createvertex([ (b2 * c1 - b1 * c2) / delta, (a1 * c2 - a2 * c1) / delta])
+end
+
+function isBetween(a, b, c)
+    crossproduct = (c.y - a.y) * (b.x - a.x) - (c.x - a.x) * (b.y - a.y)
+
+    # compare versus epsilon for floating point values, or != 0 if using integers
+    if abs(crossproduct) > 0.005
+        return false
+    end
+
+    dotproduct = (c.x - a.x) * (b.x - a.x) + (c.y - a.y)*(b.y - a.y)
+    if dotproduct < 0
+        return false
+    end
+
+    squaredlengthba = (b.x - a.x)*(b.x - a.x) + (b.y - a.y)*(b.y - a.y)
+    if dotproduct > squaredlengthba
+        return false
+    end
+
+    return true
+end
+
+# Check if point lies in an edge
+# NOTE: it is assumed the point lies in the line equation of the edge
+# Arguments: edge object and point
+# Return: true or false
+function isvert_inedge(edge, vert, min)
+    distAC = distvertices(edge.originVertex, vert)
+    distBC = distvertices(edge.nextEdge.originVertex, vert)
+    return (edge.edgeLen - distAC + distBC ) > min
+    #return edge.edgeLen < distvertices(edge.originVertex, vert)
+end # isvert_inedge
 
 end # module

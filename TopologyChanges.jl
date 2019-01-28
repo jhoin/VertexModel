@@ -73,30 +73,20 @@ function extend_edge(edge, minlen)
     p1 = edge.originVertex
     p2 = edge.nextEdge.originVertex
 
-    # The projection of point(x1,x2) in a line paralle to x axis
-    y_proj = p1.y
-    x_proj = p2.x
-
-    # Get the sides of a triangle formed by the
-    moveAngle = atan((p1.y - p2.y) / (p1.x - p2.x))
-    println("moveAngle: ", moveAngle)
-
     # Move the points in the direction given by the above angle
+    moveAngle = atan((p1.y - p2.y) / (p1.x - p2.x))
     p2.x = p2.x + 0.30*minlen*cos(moveAngle)
     p2.y = p2.y + 0.30*minlen*sin(moveAngle)
 
     # Update edge lenght
     newedgelen!(edge)
-    println("Edge len: ",edge.edgeLen)
     newedgelen!(edge.twinEdge)
-    println("Twin edge len: ",edge.twinEdge.edgeLen)
 end # extend_edge
 
 # Make the topological changes for the t1 transition
 # Arguments:edge object
 # Return: edge object updated
 function t1topology!(focal_edge)
-    println(focal_edge.edgeLen)
 
     # Check if edge is not incident edge of cell
     focal_cell = focal_edge.containCell

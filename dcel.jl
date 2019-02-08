@@ -14,7 +14,7 @@ mutable struct Vertex <: AbstractDcel
 
     Vertex() = new()
 end
-export Cell
+export Vertex
 
 # This object holds the half edge information
 mutable struct Hedge <: AbstractDcel
@@ -69,18 +69,19 @@ end # getvertexlist
 # Create a new Vertex object
 # Arguments: coordinates
 # Return: vertex object
-function createvertex(pointCoords)
+function createvertex(pointCoords::Vector{Float64})
     vert = Vertex()
     vert.x = pointCoords[1]
     vert.y = pointCoords[2]
     return vert
 end
+export createvertex
 
 # Calculate the distance between two vertices
 # Arguments: two Vertex objects
 # Return: float number storing the distance
 # TODO: move to a vertex module
-function distvertices(p1,p2)
+function distvertices(p1::Vertex, p2::Vertex)
     x1 = p1.x
     y1 = p1.y
     x2 = p2.x
@@ -88,11 +89,12 @@ function distvertices(p1,p2)
 
     return sqrt((x2-x1)^2 + (y2-y1)^2)
 end # distvertices
+export distvertices
 
 # insert an edge to the list of edges leaving a vertex
 # Arguments: vertex, hedge
 # Return: updated vertex object
-function setleavingedge!(vert,edge)
+function setleavingedge!(vert::Vertex, edge::Hedge)
     for i in 1:3
         if !isassigned(vert.leavingEdges,i)
             vert.leavingEdges[i] = edge
@@ -104,7 +106,7 @@ export setleavingedge!
 # Find a vertex in a list of vertices and return its index
 # Arguments: vertex, list of vertices
 # Return: vert index or  if not found
-function findthisvert(vert, vertices)
+function findthisvert(vert::Vertex, vertices::Vector{Vertex})
     found = 0 # inde
     for i in 1:size(vertices,1)
         if vert == vertices[i]
@@ -118,7 +120,7 @@ end # findthisvert
 # Gets all verts in a cell, the vert reference is the index on the vertex list
 # Arguments: connectivity matrix (from file)
 # Return: Vector of vectors with the vertex in each cell for all cells
-function getcellverts(lines, info)
+function getcellverts(lines::Vector{String}, info::Vector{Int})
     cellverts = []
     vertsInCells = Vector{Int}(undef,info[2])
     for i in 1:info[1]
@@ -142,7 +144,7 @@ end # getcellsizes
 # Update cell measures
 # Arguments: a cell object
 # Return: float number storing the distance
-function updatecell!(cell)
+function updatecell!(cell::Cell)
     edge = cell.incEdge
     p1 = edge.originVertex
     sumArea = 0.0
@@ -166,8 +168,8 @@ function updatecell!(cell)
 
     # Update the values
     cell.areaCell = 0.5*sumArea
-    cell.cx = 1.0/(6.0*cell.areaCell)*xcent
-    cell.cy = 1.0/(6.0*cell.areaCell)*ycent
+    cell.centroid = createvertex([1.0/(6.0*cell.areaCell)*xcent, 1.0/(6.0*cell.areaCell)*ycent])
+    #cell.cy =
     cell.perimCell = sumPerim
 
     return cell
@@ -176,7 +178,7 @@ end # updatecell
 # Invert the order of the vertices in a cell
 # Arguments: a cell object
 # Return: cell object corrected
-function invertcell!(cell)
+function invertcell!(cell::Cell)
     edge = cell.incEdge
     first = edge
     while true
@@ -222,7 +224,7 @@ end # getedgeverts
 # Create list of edges and assign the origin vertex to all of them
 # Arguments: edge list, vertex list and vertsInEdge table
 # Return: edge list updated
-function findorigin!(edges, vertices, vertsInEdge)
+function findorigin!(edges::Vector{Hedge}, vertices::Vector{Vertex}, vertsInEdge)
     for i in 1:size(vertsInEdge,1)
         edges[i] = Hedge()
         vert = vertices[vertsInEdge[i,1]]
@@ -234,7 +236,7 @@ end # findorigin
 # NOTE: This function requires a list of the number of vertices per cell
 # Arguments: edge list, list of cell sizes and vertsInEdge table
 # Return: edge list updated
-function findnext!(edges, vertsInEdge, cellsizes)
+function findnext!(edges::Vector{Hedge}, vertsInEdge, cellsizes)
     edgecell = 1 # count the number of edges that I intereact in a cell
     icell = 1 # count the cells
     for i in 1:size(vertsInEdge,1)
@@ -253,7 +255,7 @@ end # findnext
 # NOTE: This function requires a list of the number of vertices per cell
 # Arguments: edge list, list of cell sizes and vertsInEdge table
 # Return: edge list updated
-function findprevious!(edges, vertsInEdge, cellsizes)
+function findprevious!(edges::Vector{Hedge}, vertsInEdge, cellsizes)
     edgecell = 1 # count the number of edges that I intereact in a given cell
     icell = 1  # count the cells
     for i in reverse(1:size(vertsInEdge,1))
@@ -271,7 +273,7 @@ end # findnext
 # Find the twins of edges in list of edges
 # Arguments: array of vertex index in each edge, number or edges
 # Return: list of edge objects
-function findtwinedges!(provEdges, vertsInEdge,nEdges)
+function findtwinedges!(provEdges::Vector{Hedge}, vertsInEdge,nEdges)
     ntwins = 0
     for i in 1:nEdges
         verts = reverse(vertsInEdge[i,:][1])
@@ -291,7 +293,7 @@ end # findtwinedges!
 # Find the container cell of each edge
 # Arguments: edges list, cell list and cell sizes
 # Return: list of edge objects updated
-function findcontainercell!(edges, cells, cellsizes)
+function findcontainercell!(edges::Vector{Hedge}, cells::Vector{Cell}, cellsizes)
     edgeid = 1
     cellid = 1
     for i in 1:size(edges,1)
@@ -308,14 +310,14 @@ end
 # NOTE: Run only after the instantiation!!!!
 # Arguments: list of edges
 # Return: list of edge objects
-function setedgeborder!(edge)
+function setedgeborder!(edge::Hedge)
     edge.border = !isdefined(edge, :twinEdge)
 end # assignborders
 
 # Update edge length
 # Arguments: edge object
 # Return: edge object with length updated
-function newedgelen!(edge)
+function newedgelen!(edge::Hedge)
     p1 = edge.originVertex
     p2 = edge.nextEdge.originVertex
     edge.edgeLen = distvertices(p1,p2)
@@ -325,7 +327,7 @@ export newedgelen!
 # Create the list of cells and assign the incident edge for each cell
 # Arguments: cell list, edge list and list of cell sizes
 # Return: cell list updated
-function createlistcell(edges, cellsizes)
+function createlistcell(edges::Vector{Hedge}, cellsizes)
     cells =  Array{Cell}(undef,size(cellsizes,1))
     edgeid = 1
     for i in 1:size(cellsizes,1)
@@ -377,7 +379,6 @@ function updatesystem!(system::Dcel)
     # Update cells
     for i in 1:length(system.listCell)
         updatecell!(system.listCell[i])
-        println(system.listCell[i].cx,"  ",system.listCell[i].cy)
         # if(system.listCell[i].areaCell < 0.0)
         #     invertcell!(system.listCell[i])
         #     updatecell!(system.listCell[i])

@@ -145,50 +145,75 @@ function cell_division!(mesh, cell)
     ixy = ixy/24.0
     inertia_matrix = [ixx -ixy; -ixy  iyy]
     inertia_eigen = eigen(inertia_matrix)
-    axis_angle = inertia_eigen.vectors[:,2]
+    idx = findmax(inertia_eigen.values)[2]
+    axis_angle = inertia_eigen.vectors[:,idx]
 
     centroid_displace = [axis_angle[1]*1.0, axis_angle[2]*1.0]
     c2 = createvertex(centroid_displace)
-
-    # Get the slope of the division axis
-    println(  lineslope(cell.centroid, c2))
-
-    # Get intersect of the division axis
-    #axis_ysect = yintersect(cell.centroid, c2)
 
     # loop over edges of cell and look for
     edge = cell.incEdge
     first_edge = edge
     while true
-        #edgeslope = lineslope(edge.originVertex, edge.nextEdge.originVertex)
-        #edge_ysect = yintersect(edge.originVertex, edge.nextEdge.originVertex)
-        #intersect_point = lineintersect(slopeaxis, edgeslope, axis_ysect, edge_ysect)
         intersect = intersection(edge.originVertex, edge.nextEdge.originVertex, cell.centroid, c2)
-        #println(intersect.x, " ", edge.edgeLen)
-        #isvert_inedge(edge, intersect, 0.5) && push!(mesh.listVert, intersect)
-        isBetween(edge.originVertex, edge.nextEdge.originVertex, intersect) && push!(mesh.listVert, intersect)
+        if is_between(edge.originVertex, edge.nextEdge.originVertex, intersect)
+            push!(mesh.listVert, intersect)
+        end
         edge = edge.nextEdge
         if(edge == first_edge) break end
-
-        #!is_inline(edgeslope, edge_ysect, intersect_point) && continue
     end
+
 end # cell_division!
+
+#
+function intersection(p1::Vertex, p2::Vertex, p3::Vertex, p4::Vertex)
+    a1 = p2.y - p1.y
+    b1 = p1.x - p2.x
+    c1 = a1 * p1.x + b1 * p1.y
+
+    a2 = p4.y - p3.y
+    b2 = p3.x - p4.x
+    c2 = a2 * p3.x + b2 * p3.y
+
+    delta = a1 * b2 - a2 * b1
+
+    # If lines are parallel, intersection point will contain infinite values
+    return createvertex([ (b2 * c1 - b1 * c2) / delta, (a1 * c2 - a2 * c1) / delta])
+end # intersection
+
+# Check if point c lies on the line segment formed by a and b
+# Arguments: vertex objects of each point
+# Return: true (point lies in line) or false (does not lie)
+function is_between(a::Vertex, b::Vertex, c::Vertex)
+    crossproduct = (c.y - a.y) * (b.x - a.x) - (c.x - a.x) * (b.y - a.y)
+
+    # compare versus epsilon for floating point values, or != 0 if using integers
+    if abs(crossproduct) > 0.005 return false end
+
+    dotproduct = (c.x - a.x) * (b.x - a.x) + (c.y - a.y)*(b.y - a.y)
+    if dotproduct < 0 return false end
+
+    squaredlengthba = (b.x - a.x)*(b.x - a.x) + (b.y - a.y)*(b.y - a.y)
+    if dotproduct > squaredlengthba return false end
+
+    return true
+end # is_between
 
 # Compute slope of a line equation formed by two points
 # Arguments: two vertex objects
 # Return: a float containing the slope
-function lineslope(p1, p2)
+function lineslope(p1::Vertex, p2::Vertex)
     return (p2.y - p1.y)/(p2.x - p1.x)
 end # lineslope
 
 # Compute intersect of the line equation in the y axis given a point and slope
 # Arguments: vertex object and line slope
 # Return: a float containing the intersect
-function yintersect(p, slope)
+function yintersect(p::Vertex, slope)
     return p.y - slope*p.x
 end # yintersect
 
-function yintersect(p1, p2)
+function yintersect(p1::Vertex, p2::Vertex)
     return (p1.x*p2.y - p1.y*p2.x) / (p1.x - p2.x)
 end
 

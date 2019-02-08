@@ -1,12 +1,18 @@
 module TopologyChanges
 
-include("dcel.jl")
-using .DCEL
+#include("dcel.jl")
+using ..DCEL
+using LinearAlgebra: eigen
 
 # Check for topological changes in mesh
 # Arguments: mesh
 # Return: updated mesh
-function update_topology!(mesh, minlen)
+function update_topology!(mesh::Dcel, minlen::Float64)
+
+    for i in 1:size(mesh.listCell,1)
+       cell_division!(mesh, mesh.listCell[i])
+    end
+
 
     # Check for t1 transitions
     for i in 1:size(mesh.listEdge,1)

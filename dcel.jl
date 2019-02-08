@@ -35,8 +35,9 @@ mutable struct Cell <: AbstractDcel
     incEdge
     perimCell::Float64
     areaCell::Float64
-    cx::Float64
-    cy::Float64
+    centroid
+    #cx::Float64
+    #cy::Float64
 
     Cell() = new()
 end

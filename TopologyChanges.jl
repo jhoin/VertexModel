@@ -139,14 +139,11 @@ function cell_division!(mesh::Dcel, cell::Cell)
 
     # Get the inertia tensor
     ixx,ixy, iyy = 0.0,0.0,0.0
-    while true
+    for edge in cell
+        p1, p2 = edge.originVertex, edge.nextEdge.originVertex
         ixx += (p1.x*p2.y - p2.x*p1.y)*((p1.y)^2 + p1.y*p2.y + (p2.y)^2)
         iyy += (p1.x*p2.y - p2.x*p1.y)*((p1.x)^2 + p1.x*p2.x + (p2.x)^2)
         ixy += (p1.x*p2.y - p2.x*p1.y)*(p1.x*p2.y + 2.0*p1.x*p1.y + 2.0*p2.x*p2.y + p2.x*p1.y)
-        p1 = p2
-        edge = edge.nextEdge
-        if(p2 == first) break end
-        p2 = edge.nextEdge.originVertex
     end
     ixx = ixx/12.0
     iyy = iyy/12.0
@@ -160,15 +157,11 @@ function cell_division!(mesh::Dcel, cell::Cell)
     c2 = createvertex(centroid_displace)
 
     # loop over edges of cell and look for
-    edge = cell.incEdge
-    first_edge = edge
-    while true
+    for edge in cell
         intersect = intersection(edge.originVertex, edge.nextEdge.originVertex, cell.centroid, c2)
         if is_between(edge.originVertex, edge.nextEdge.originVertex, intersect)
             push!(mesh.listVert, intersect)
         end
-        edge = edge.nextEdge
-        if(edge == first_edge) break end
     end
 
 end # cell_division!

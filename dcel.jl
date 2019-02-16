@@ -51,6 +51,29 @@ mutable struct Dcel
 end
 export Dcel
 
+### Iterators ##################
+
+# Iterate over the vertices of a cell
+# Arguments: array of lines containing vertex coordinates
+# Return: list of vertices objects
+function Base.iterate(iter::Cell)
+    state = (iter.incEdge, false)
+    return iterate(iter, state)
+end
+
+# Iterate over the vertices of a cell
+# Arguments: array of lines containing vertex coordinates
+# Return: list of vertices objects
+function Base.iterate(iter::Cell, state)
+    edge, pass_first = state
+
+    if edge == iter.incEdge && pass_first
+        return nothing
+    end
+    return edge, (edge.nextEdge, true)
+end
+Base.eltype(iter::Cell) = Hedge
+
 # Create list of vertices
 # Arguments: array of lines containing vertex coordinates
 # Return: list of vertices objects

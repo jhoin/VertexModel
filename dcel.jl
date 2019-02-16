@@ -7,7 +7,7 @@ using DelimitedFiles
 export importfromfile, updatesystem!, t1transition!
 abstract type AbstractDcel end
 
-mutable struct Vertex <: AbstractDcel
+mutable struct Vertex
     x::Float64
     y::Float64
     leavingEdges
@@ -21,7 +21,7 @@ mutable struct Hedge <: AbstractDcel
     twinEdge::Hedge
     nextEdge::Hedge
     prevEdge::Hedge
-    originVertex
+    originVertex::Vertex
     containCell
     edgeLen::Float64
     border::Bool
@@ -32,12 +32,10 @@ export Hedge
 
 # This object holds the cell information
 mutable struct Cell <: AbstractDcel
-    incEdge
+    incEdge::Hedge
     perimCell::Float64
     areaCell::Float64
-    centroid
-    #cx::Float64
-    #cy::Float64
+    centroid::Vertex
 
     Cell() = new()
 end
@@ -144,8 +142,8 @@ end # findthisvert
 # Arguments: connectivity matrix (from file)
 # Return: Vector of vectors with the vertex in each cell for all cells
 function getcellverts(lines::Vector{String}, info::Vector{Int})
-    cellverts = []
-    vertsInCells = Vector{Int}(undef,info[2])
+    cellverts = Vector{Vector{Int}}()
+    vertsInCells = Vector{Int}(undef, info[2])
     for i in 1:info[1]
         vertsInCells[:] = [parse(Int,str) for str in split(lines[i])]
         push!(cellverts,vertsInCells[vertsInCells .> 0])
@@ -156,7 +154,7 @@ end # getcellverts
 # Gets the number of verts in each cell
 # Arguments: connectivity matrix
 # Return: vector with cell sizes
-function getcellsizes(cellverts)
+function getcellsizes(cellverts::Vector{Vector{Int}})
     cellsizes = Vector{Int64}(undef,size(cellverts))
     for i in 1:size(cellverts)[1]
         cellsizes[i] = size(cellverts[i])[1]
@@ -168,31 +166,23 @@ end # getcellsizes
 # Arguments: a cell object
 # Return: float number storing the distance
 function updatecell!(cell::Cell)
-    edge = cell.incEdge
-    p1 = edge.originVertex
     sumArea = 0.0
     sumPerim = 0.0
     xcent = 0.0
     ycent = 0.0
-    first = p1
-    p2 = edge.nextEdge.originVertex
 
     # loop over vertex and get the measurements
-    while true
+    for edge in cell
+        p1, p2 = edge.originVertex, edge.nextEdge.originVertex
         sumArea += p1.x*p2.y - p2.x*p1.y
         sumPerim += distvertices(p1,p2)
         xcent += (p1.x + p2.x) * (p1.x*p2.y - p2.x*p1.y)
         ycent += (p1.y + p2.y) * (p1.x*p2.y - p2.x*p1.y)
-        p1 = p2
-        edge = edge.nextEdge
-        if(p2 == first) break end
-        p2 = edge.nextEdge.originVertex
     end
 
     # Update the values
     cell.areaCell = 0.5*sumArea
     cell.centroid = createvertex([1.0/(6.0*cell.areaCell)*xcent, 1.0/(6.0*cell.areaCell)*ycent])
-    #cell.cy =
     cell.perimCell = sumPerim
 
     return cell
@@ -202,12 +192,9 @@ end # updatecell
 # Arguments: a cell object
 # Return: cell object corrected
 function invertcell!(cell::Cell)
-    edge = cell.incEdge
-    first = edge
-    while true
+    for edge in cell
         edge.nextEdge, edge.prevEdge = edge.prevEdge, edge.nextEdge
         edge = edge.prevEdge
-        if(edge == first) break end
     end
 end # invertcell
 
@@ -216,16 +203,8 @@ end # invertcell
 # Return: list of vertices objects
 function getcellverts(cell::Cell)
     verts = Vector{Vertex}()
-    edge = cell.incEdge
-    vert = edge.originVertex
-    first = edge
-    while true
-        push!(verts,vert)
-        edge = edge.nextEdge
-        if(edge == first)
-            break
-        end
-        vert = edge.originVertex
+    for edge in cell
+        push!(verts,edge.originVertex)
     end
     return verts
 end # getcellverts
@@ -233,8 +212,8 @@ end # getcellverts
 # Build the verts of edge table, and then
 # Arguments: vertices in each cell
 # Return: verts in each edge foe all edges
-function getedgeverts(cellverts)
-    edgeverts = []
+function getedgeverts(cellverts::Vector{Vector{Int64}})
+    edgeverts = Vector{Vector{Int64}}()
     for i in 1:size(cellverts,1)
         for j in 1:size(cellverts[i],1)-1
             push!(edgeverts,[cellverts[i][j], cellverts[i][j+1]])
@@ -259,7 +238,7 @@ end # findorigin
 # NOTE: This function requires a list of the number of vertices per cell
 # Arguments: edge list, list of cell sizes and vertsInEdge table
 # Return: edge list updated
-function findnext!(edges::Vector{Hedge}, vertsInEdge, cellsizes)
+function findnext!(edges::Vector{Hedge}, vertsInEdge::Vector{Vector{Int64}}, cellsizes::Vector{Int64})
     edgecell = 1 # count the number of edges that I intereact in a cell
     icell = 1 # count the cells
     for i in 1:size(vertsInEdge,1)
@@ -278,7 +257,7 @@ end # findnext
 # NOTE: This function requires a list of the number of vertices per cell
 # Arguments: edge list, list of cell sizes and vertsInEdge table
 # Return: edge list updated
-function findprevious!(edges::Vector{Hedge}, vertsInEdge, cellsizes)
+function findprevious!(edges::Vector{Hedge}, vertsInEdge::Vector{Vector{Int64}}, cellsizes::Vector{Int64})
     edgecell = 1 # count the number of edges that I intereact in a given cell
     icell = 1  # count the cells
     for i in reverse(1:size(vertsInEdge,1))
@@ -296,7 +275,7 @@ end # findnext
 # Find the twins of edges in list of edges
 # Arguments: array of vertex index in each edge, number or edges
 # Return: list of edge objects
-function findtwinedges!(provEdges::Vector{Hedge}, vertsInEdge,nEdges)
+function findtwinedges!(provEdges::Vector{Hedge}, vertsInEdge::Vector{Vector{Int64}}, nEdges::Int64)
     ntwins = 0
     for i in 1:nEdges
         verts = reverse(vertsInEdge[i,:][1])
@@ -446,7 +425,3 @@ end # exporttofile
 export exporttofile
 
 end # module
-
-# TODO:
-# Write iterators to loop over all vertices of a given cell
-# Plotting operations for mesh

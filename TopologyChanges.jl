@@ -13,7 +13,6 @@ function update_topology!(mesh::Dcel, minlen::Float64)
        cell_division!(mesh, mesh.listCell[i])
     end
 
-
     # Check for t1 transitions
     for i in 1:size(mesh.listEdge,1)
         if mesh.listEdge[i].border
@@ -132,10 +131,6 @@ end # addedgeat
 # Arguments: mesh object
 # Return: mesh object updated
 function cell_division!(mesh::Dcel, cell::Cell)
-    edge = cell.incEdge
-    p1 = edge.originVertex
-    first = p1
-    p2 = edge.nextEdge.originVertex
 
     # Get the inertia tensor
     ixx,ixy, iyy = 0.0,0.0,0.0
@@ -165,6 +160,7 @@ function cell_division!(mesh::Dcel, cell::Cell)
     end
 
 end # cell_division!
+
 
 #
 function intersection(p1::Vertex, p2::Vertex, p3::Vertex, p4::Vertex)

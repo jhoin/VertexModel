@@ -146,21 +146,36 @@ function cell_division!(mesh::Dcel, cell::Cell)
     inertia_matrix = [ixx -ixy; -ixy  iyy]
     inertia_eigen = eigen(inertia_matrix)
     idx = findmax(inertia_eigen.values)[2]
-    axis_angle = inertia_eigen.vectors[:,idx]
+    println(inertia_eigen.vectors)
+    axis_angle = inertia_eigen.vectors[idx,:]
 
-    centroid_displace = [axis_angle[1]*1.0, axis_angle[2]*1.0]
-    c2 = createvertex(centroid_displace)
+    #centroid_displace = [axis_angle[1]+cell.centroid.x, axis_angle[2]+cell.centroid.y]
+    centroid_displace = [axis_angle[1]+1.0, axis_angle[2]+1.0]
+    println(centroid_displace)
+    #
+    return createvertex(centroid_displace)
+end # get_shortaxis
 
-    # loop over edges of cell and look for
+# Get short axis as the perpendicar line to the farthest point
+# Arguments: cell object
+# Return: Vertex in the direction of the shortest axis
+function shortest_axis(cell::Cell)
+    farthest = Vertex()
+    dist = 0.0
     for edge in cell
-        intersect = intersection(edge.originVertex, edge.nextEdge.originVertex, cell.centroid, c2)
-        if is_between(edge.originVertex, edge.nextEdge.originVertex, intersect)
-            push!(mesh.listVert, intersect)
+        p1 = edge.originVertex
+        new_dist = distvertices(p1, cell.centroid)
+        if dist < new_dist
+            dist = new_dist
+            farthest = p1
         end
     end
+    angle_change = atan((farthest.x - cell.centroid.x)/(farthest.y - cell.centroid.y))
+    x = cell.centroid.x + 0.1*cos(angle_change)
+    y = cell.centroid.y + 0.1*sin(angle_change)
 
-end # cell_division!
-
+    return createvertex([x,y])
+end # shortest_axis
 
 #
 function intersection(p1::Vertex, p2::Vertex, p3::Vertex, p4::Vertex)

@@ -49,8 +49,6 @@ mutable struct Dcel
 end
 export Dcel
 
-### Iterators ##################
-
 # Iterate over the vertices of a cell
 # Arguments: array of lines containing vertex coordinates
 # Return: list of vertices objects

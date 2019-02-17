@@ -14,17 +14,17 @@ function update_topology!(mesh::Dcel, minlen::Float64)
     end
 
     # Check for t1 transitions
-    for i in 1:size(mesh.listEdge,1)
-        if mesh.listEdge[i].border
-            continue
-        end
-        if mesh.listEdge[i].edgeLen < minlen
-            t1transition!(mesh.listEdge[i], minlen)
-            #cell = mesh.listEdge[i].containCell
-            #cell_division!(mesh, cell)
-            #break
-        end
-    end
+    # for i in 1:size(mesh.listEdge,1)
+    #     if mesh.listEdge[i].border
+    #         continue
+    #     end
+    #     if mesh.listEdge[i].edgeLen < minlen
+    #         t1transition!(mesh.listEdge[i], minlen)
+    #         #cell = mesh.listEdge[i].containCell
+    #         #cell_division!(mesh, cell)
+    #         #break
+    #     end
+    # end
 end #update_topology
 export update_topology!
 
@@ -121,16 +121,95 @@ end # edgeremove
 # Return: edge object
 function addedgeat!(focal_edge::Hedge, next_edge::Hedge)
     next_edge.originVertex = focal_edge.nextEdge.originVertex
+    #setleavingedge!(focal_edge.nextEdge.originVertex, next_edge)
     focal_edge.nextEdge = next_edge
     focal_edge.prevEdge = next_edge.prevEdge
     next_edge.prevEdge.nextEdge = focal_edge
     next_edge.prevEdge = focal_edge
 end # addedgeat
 
+# create an edge cell after the edge
+# Arguments: mesh, and edge that will come before the given edge and origin
+# Return: mesh object with new
+function addedgeat!(mesh::Dcel, prev_edge::Hedge, vert::Vertex)
+    edge = Hedge() # Edge created by the intersection
+    push!(mesh.listEdge, edge)
+    edge.originVertex = vert
+    edge.border = prev_edge.border
+    edge.prevEdge = prev_edge
+    edge.nextEdge = prev_edge.nextEdge
+    prev_edge.nextEdge = edge
+    edge.containCell = prev_edge.containCell
+    return edge
+end # addedgeat!
+
+# create an edge cell between two edges
+# Arguments: mesh, previous and next edge and the origin vertex
+# Return: mesh object with new
+function addedgeat!(mesh::Dcel, prev_edge::Hedge, next_edge::Hedge, vert::Vertex)
+    edge = Hedge()
+    push!(mesh.listEdge, edge)
+    edge.originVertex = vert
+    edge.prevEdge = prev_edge
+    prev_edge.nextEdge = edge
+    edge.nextEdge = next_edge
+    next_edge.prevEdge = edge
+    edge.containCell = prev_edge.containCell
+    return edge
+end # addedgeat!
+
 # Perform a cell division
 # Arguments: mesh object
 # Return: mesh object updated
 function cell_division!(mesh::Dcel, cell::Cell)
+
+    # Get the shortest axis, aka, the vertex in the shortest axis
+    c2 = shortest_axis(cell)
+
+    # loop over edges of cell and look for the points where the axis crosses then edge
+    edges_crossed = Vector{Hedge}()
+    verts_crossing = Vector{Vertex}()
+    for edge in cell
+        intersect = intersection(edge.originVertex, edge.nextEdge.originVertex, cell.centroid, c2)
+        if is_between(edge.originVertex, edge.nextEdge.originVertex, intersect)
+            push!(verts_crossing, intersect)
+            push!(mesh.listVert, intersect)
+            push!(edges_crossed, edge)
+        end
+    end
+
+    # Topological changes in edge
+    split1 = addedgeat!(mesh, edges_crossed[1], verts_crossing[1])
+    split2 = addedgeat!(mesh, edges_crossed[2], verts_crossing[2])
+    if !edges_crossed[1].border
+        split1_twin = addedgeat!(mesh, edges_crossed[1].twinEdge, verts_crossing[1])
+        split1.twinEdge, split1_twin.twinEdge = split1_twin, split1
+    end
+
+    if !edges_crossed[2].border
+        split2_twin = addedgeat!(mesh, edges_crossed[2].twinEdge, verts_crossing[2])
+        split2.twinEdge, split2_twin.twinEdge = split2_twin, split2
+    end
+
+    focal1 = addedgeat!(mesh, edges_crossed[1], split2, verts_crossing[1])
+    focal2 = addedgeat!(mesh, edges_crossed[2], split1, verts_crossing[2])
+    focal1.twinEdge, focal2.twinEdge = focal2, focal1
+
+    # Topological changes in cells
+    new_cell = Cell()
+    push!(mesh.listCell, new_cell)
+    new_cell.incEdge = focal2
+    focal2.containCell = new_cell
+    for edge in new_cell
+        edge.containCell = new_cell
+    end
+
+end # cell_division!
+
+# Calculate the shortest axis and return a point on that axis
+# Arguments: cell
+# Return: vertex on the shortest axis
+function get_shortaxis(cell::Cell)
 
     # Get the inertia tensor
     ixx,ixy, iyy = 0.0,0.0,0.0

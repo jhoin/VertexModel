@@ -183,18 +183,31 @@ function cell_division!(mesh::Dcel, cell::Cell)
     split1 = addedgeat!(mesh, edges_crossed[1], verts_crossing[1])
     split2 = addedgeat!(mesh, edges_crossed[2], verts_crossing[2])
     if !edges_crossed[1].border
-        split1_twin = addedgeat!(mesh, edges_crossed[1].twinEdge, verts_crossing[1])
-        split1.twinEdge, split1_twin.twinEdge = split1_twin, split1
+        split1_twin = addedgeat!(mesh, edges_crossed[1].twinEdge.prevEdge, edges_crossed[1].twinEdge.originVertex)
+        edges_crossed[1].twinEdge.originVertex = verts_crossing[1]
+        split1_twin.twinEdge = split1
+        split1.twinEdge = split1_twin
+        #split1_twin.twinEdge, edges_crossed[1].twinEdge = edges_crossed[1], split1_twin
     end
 
     if !edges_crossed[2].border
-        split2_twin = addedgeat!(mesh, edges_crossed[2].twinEdge, verts_crossing[2])
-        split2.twinEdge, split2_twin.twinEdge = split2_twin, split2
+        split2_twin = addedgeat!(mesh, edges_crossed[2].twinEdge.prevEdge, edges_crossed[2].twinEdge.originVertex)
+        edges_crossed[2].twinEdge.originVertex = verts_crossing[2]
+        split2_twin.twinEdge = split2
+        split2.twinEdge = split2_twin
+        #split2.twinEdge, edges_crossed[2].twinEdge.prevEdge = split2, edges_crossed[2].twinEdge.prevEdge
+        #split2.twinEdge, edges_crossed[2].twinEdge.twinEdge = edges_crossed[2], split2
+        #split2_twin.twinEdge, edges_crossed[2].twinEdge = edges_crossed[2], split2_twin
     end
 
     focal1 = addedgeat!(mesh, edges_crossed[1], split2, verts_crossing[1])
     focal2 = addedgeat!(mesh, edges_crossed[2], split1, verts_crossing[2])
     focal1.twinEdge, focal2.twinEdge = focal2, focal1
+    #shorten_edge!(focal1)
+
+    for i in 1:size(mesh.listEdge, 1)
+        newedgelen!(mesh.listEdge[i])
+    end
 
     # Topological changes in cells
     new_cell = Cell()

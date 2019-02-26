@@ -170,10 +170,11 @@ function cell_division!(mesh::Dcel, cell::Cell)
     edges_crossed = Vector{Hedge}()
     verts_crossing = Vector{Vertex}()
     for edge in cell
-        intersect = intersection(edge.originVertex, edge.nextEdge.originVertex, cell.centroid, c2)
-        if is_between(edge.originVertex, edge.nextEdge.originVertex, intersect)
-            push!(verts_crossing, intersect)
-            push!(mesh.listVert, intersect)
+        inter = intersection(edge.originVertex, edge.nextEdge.originVertex, cell.centroid, c2)
+        #println(inter.x)
+        if !isnan(inter.x) && is_between(edge.originVertex, edge.nextEdge.originVertex, inter)
+            push!(verts_crossing, inter)
+            push!(mesh.listVert, inter)
             push!(edges_crossed, edge)
         end
     end

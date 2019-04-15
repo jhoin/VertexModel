@@ -15,16 +15,15 @@ function update_topology!(mesh::Dcel, minlen::Float64)
         end
         if mesh.listEdge[i].edgeLen < minlen
             t1transition!(mesh.listEdge[i], minlen)
-            println(i)
             #cell = mesh.listEdge[i].containCell
             #cell_division!(mesh, cell)
             #break
         end
     end
 
-    # for i in 1:size(mesh.listCell,1)
-    #     cell_division!(mesh, mesh.listCell[i])
-    # end
+    #for i in 1:size(mesh.listCell,1)
+    #    cell_division!(mesh, mesh.listCell[i])
+    #end
 
 
 end #update_topology
@@ -65,10 +64,11 @@ function t1topology!(focal_edge::Hedge)
     if focal_cell.incEdge == focal_edge
         focal_cell.incEdge = focal_edge.nextEdge
     end
+    println(isdefined(focal_edge, :prevEdge))
 
     # Edge operations
     edge = focal_edge.prevEdge.twinEdge
-    edgeremove!(focal_edge, edge)
+    edgeremove!(focal_edge, focal_edge.prevEdge)
     addedgeat!(focal_edge, edge)
 end # t1topolgy
 
@@ -77,8 +77,7 @@ end # t1topolgy
 # Return: edge object
 function edgeremove!(edge::Hedge, prevtwin::Hedge)
     edge.prevEdge.nextEdge = edge.nextEdge
-    edge.containCell = prevtwin.containCell
-    #edge.nextEdge.originVertex = edge.twinEdge.originVertex
+    edge.containCell = prevtwin.twinEdge.containCell
 end # edgeremove
 
 # Add edge into cell before indicated edge
@@ -137,7 +136,6 @@ function cell_division!(mesh::Dcel, cell::Cell)
     verts_crossing = Vector{Vertex}()
     for edge in cell
         inter = intersection(edge.originVertex, edge.nextEdge.originVertex, cell.centroid, c2)
-        #println(inter.x)
         if !isnan(inter.x) && is_between(edge.originVertex, edge.nextEdge.originVertex, inter)
             push!(verts_crossing, inter)
             push!(mesh.listVert, inter)

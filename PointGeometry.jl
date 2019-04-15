@@ -52,6 +52,7 @@ function intersection(p1::Vertex, p2::Vertex, p3::Vertex, p4::Vertex)
     # If lines are parallel, intersection point will contain infinite values
     return createvertex([ (b2 * c1 - b1 * c2) / delta, (a1 * c2 - a2 * c1) / delta])
 end # intersection
+export intersection
 
 # Check if point c lies on the line segment formed by a and b
 # Arguments: vertex objects of each point
@@ -70,6 +71,7 @@ function is_between(a::Vertex, b::Vertex, c::Vertex)
 
     return true
 end # is_between
+export is_between
 
 # Compute slope of a line equation formed by two points
 # Arguments: two vertex objects

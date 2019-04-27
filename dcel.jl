@@ -25,6 +25,7 @@ mutable struct Hedge <: AbstractDcel
     containCell
     edgeLen::Float64
     border::Bool
+    eqbond::Float64
 
     Hedge() = new()
 end
@@ -35,6 +36,10 @@ mutable struct Cell <: AbstractDcel
     incEdge::Hedge
     perimCell::Float64
     areaCell::Float64
+    eqarea::Float64
+    eqperim::Float64
+    area_elast::Float64
+    perim_elast::Float64
     centroid::Vertex
 
     Cell() = new()
@@ -127,7 +132,7 @@ export setleavingedge!
 # Return: vert index or  if not found
 function findthisvert(vert::Vertex, vertices::Vector{Vertex})
     found = 0 # inde
-    for i in 1:size(vertices,1)
+    for i in 1:length(vertices)
         if vert == vertices[i]
             found = i
             break
@@ -154,8 +159,8 @@ end # getcellverts
 # Return: vector with cell sizes
 function getcellsizes(cellverts::Vector{Vector{Int}})
     cellsizes = Vector{Int64}(undef,size(cellverts))
-    for i in 1:size(cellverts)[1]
-        cellsizes[i] = size(cellverts[i])[1]
+    for i in 1:length(cellverts)
+        cellsizes[i] = length(cellverts[i])
     end
     return cellsizes
 end # getcellsizes
@@ -172,19 +177,21 @@ function updatecell!(cell::Cell)
     # loop over vertex and get the measurements
     for edge in cell
         p1, p2 = edge.originVertex, edge.nextEdge.originVertex
+        setleavingedge!(p1, edge)
         sumArea += p1.x*p2.y - p2.x*p1.y
-        sumPerim += distvertices(p1,p2)
-        xcent += (p1.x + p2.x) * (p1.x*p2.y - p2.x*p1.y)
-        ycent += (p1.y + p2.y) * (p1.x*p2.y - p2.x*p1.y)
+        sumPerim += edge.edgeLen#distvertices(p1,p2)
+        xcent += (p1.x + p2.x) * sumArea
+        ycent += (p1.y + p2.y) * sumArea
     end
 
     # Update the values
     cell.areaCell = 0.5*sumArea
-    cell.centroid = createvertex([1.0/(6.0*cell.areaCell)*xcent, 1.0/(6.0*cell.areaCell)*ycent])
+    cell.centroid = createvertex([xcent/(6.0*cell.areaCell), ycent/(6.0*cell.areaCell)])
     cell.perimCell = sumPerim
 
     return cell
 end # updatecell
+export updatecell!
 
 # Invert the order of the vertices in a cell
 # Arguments: a cell object
@@ -398,24 +405,24 @@ end # updatesystem
 function exporttofile(mesh::Dcel)
 
     # Create the coordinates list
-    coords = Array{Float64}(undef, size(mesh.listVert,1), 2)
-    for i in 1:size(mesh.listVert,1)
+    coords = Array{Float64}(undef, length(mesh.listVert), 2)
+    for i in 1:length(mesh.listVert)
         coords[i,:] = [mesh.listVert[i].x, mesh.listVert[i].y]
     end
 
     # Create the connectivity list
     celltab = []
-    for cell in 1:size(mesh.listCell,1)
+    for cell in 1:length(mesh.listCell)
         verts_cells = getcellverts(mesh.listCell[cell])
-        vertids = [findthisvert(verts_cells[vert], mesh.listVert) for vert in 1:size(verts_cells,1)]
+        vertids = [findthisvert(verts_cells[vert], mesh.listVert) for vert in 1:length(verts_cells)]
         push!(celltab, vertids)
     end
 
     open("/home/jhon/Documents/Projects/vertexModelJulia/results/ex3_out.txt", "w") do out
-        nvert = size(mesh.listVert,1)
+        nvert = length(mesh.listVert)
         write(out, "$nvert\n")
         writedlm(out, coords)
-        ncell = size(mesh.listCell,1)
+        ncell = length(mesh.listCell)
         write(out, "$ncell\n")
         writedlm(out, celltab)
     end

@@ -1,23 +1,52 @@
 # This module contains the doubly-connected edge list data structure
 # It is a provisory file, each object will be moved to its respective file in the near future
-module DCEL
+module Meshes
 
 using DelimitedFiles
+import Base: iterate, print
 
 export importfromfile, updatesystem!, t1transition!
-abstract type AbstractDcel end
+abstract type AbstractMesh end
+abstract type AbstractBoundary end
 
 mutable struct Vertex
     x::Float64
     y::Float64
+    id::Int64
     leavingEdges
+    treatBoundary::AbstractBoundary
 
     Vertex() = new()
 end
 export Vertex
 
+# Boundary condition for vertices tied to springs
+mutable struct Spring <: AbstractBoundary
+    x::Float64
+    y::Float64
+    spring_const::Float64
+    len::Float64
+    vert::Vertex
+    Spring(x, y, spring_const, len, vert) = new(x, y, spring_const, len, vert)
+end
+export Spring
+
+# Boundary condition for immobile vertices
+struct Immobile <: AbstractBoundary
+    vert::Vertex
+    Immobile(vert) = new(vert)
+end
+export Immobile
+
+# Boundary condition for vertices without treatment, they can move
+struct Mobile <: AbstractBoundary
+    vert::Vertex
+    Mobile(vert) = new(vert)
+end
+export Mobile
+
 # This object holds the half edge information
-mutable struct Hedge <: AbstractDcel
+mutable struct Hedge
     twinEdge::Hedge
     nextEdge::Hedge
     prevEdge::Hedge
@@ -26,13 +55,14 @@ mutable struct Hedge <: AbstractDcel
     edgeLen::Float64
     border::Bool
     eqbond::Float64
+    id::Int64
 
     Hedge() = new()
 end
 export Hedge
 
 # This object holds the cell information
-mutable struct Cell <: AbstractDcel
+mutable struct Cell
     incEdge::Hedge
     perimCell::Float64
     areaCell::Float64
@@ -41,18 +71,20 @@ mutable struct Cell <: AbstractDcel
     area_elast::Float64
     perim_elast::Float64
     centroid::Vertex
+    id::Int64
 
     Cell() = new()
 end
 export Cell
 
 # contains the whole mesh
-mutable struct Dcel
-    listVert::Vector{Vertex}
-    listEdge::Vector{Hedge}
-    listCell::Vector{Cell}
+mutable struct Mesh
+    vertices::Vector{Vertex}
+    edges::Vector{Hedge}
+    cells::Vector{Cell}
+    lastid::Vector{Int64}
 end
-export Dcel
+export Mesh
 
 # Iterate over the vertices of a cell
 # Arguments: array of lines containing vertex coordinates
@@ -75,6 +107,32 @@ function Base.iterate(iter::Cell, state)
 end
 Base.eltype(iter::Cell) = Hedge
 
+# Show a summary of the given edge
+# Arguments: edge object
+# Return: summary on screen
+function Base.print(edge::Hedge)
+    println("Id: ",edge.id," Edge lenght: ", edge.edgeLen)
+    println("Origin vertex coordinates: ", edge.originVertex.x, " ", edge.originVertex.y)
+    println("Cell centroid: ", edge.containCell.centroid.x, " ", edge.containCell.centroid.y)
+    println("Border? ", edge.border, " ", isdefined(edge, :twinEdge))
+end
+
+# Show a summary of the given cell
+# Arguments: cell object
+# Return: summary on screen
+function Base.print(cell::Cell)
+    println("Id: ",cell.id," Cell area: ", cell.areaCell, " Cell perimeter: ", cell.perimCell)
+    println("Centroid coordinates: ", cell.centroid.x, " ", cell.centroid.y)
+end
+
+# Show a summary of the given vertex
+# Arguments: vertex object
+# Return: summary on screen
+function Base.print(vert::Vertex)
+    println("Coordinates: ", vert.x, " ", vert.y)
+    println("Boundary type: ", typeof(vert.treatBoundary))
+end
+
 # Create list of vertices
 # Arguments: array of lines containing vertex coordinates
 # Return: list of vertices objects
@@ -84,19 +142,21 @@ function getvertexlist(lines::Array{String,1},nPoints::Integer)
     for i in 1:nPoints
         pointCoords[:] = [parse(Float64,str) for str in split(popfirst!(lines))]
         vertex = createvertex(pointCoords)
-        vertex.leavingEdges = Vector{Hedge}(undef,3)
+        vertex.id = i
         vertices[i] = vertex
     end # loop points
     return vertices
 end # getvertexlist
 
-# Create a new Vertex object
-# Arguments: coordinates
-# Return: vertex object
+"""
+    createvertex(pointCoords)
+Create a new Vertex object from two coordinates and return it.
+"""
 function createvertex(pointCoords::Vector{Float64})
     vert = Vertex()
     vert.x = pointCoords[1]
     vert.y = pointCoords[2]
+    vert.leavingEdges = Vector{Hedge}(undef,3)
     return vert
 end
 export createvertex
@@ -115,21 +175,57 @@ function distvertices(p1::Vertex, p2::Vertex)
 end # distvertices
 export distvertices
 
-# insert an edge to the list of edges leaving a vertex
-# Arguments: vertex, hedge
-# Return: updated vertex object
+function update_spring!(vert::Vertex)
+    spring = vert.treatBoundary
+    len = sqrt((spring.x - vert.x)^2 + (spring.y - vert.y)^2)
+    spring.len = len
+end
+export update_spring!
+
+"""
+    setleavingedge!(vert::Vertex, edge::Hedge)
+Add the edge to the list of edges leaving the vert.
+"""
 function setleavingedge!(vert::Vertex, edge::Hedge)
     for i in 1:3
         if !isassigned(vert.leavingEdges,i)
             vert.leavingEdges[i] = edge
+            break
         end
     end
 end # setleavingedge!
 export setleavingedge!
 
-# Find a vertex in a list of vertices and return its index
-# Arguments: vertex, list of vertices
-# Return: vert index or  if not found
+"""
+    setleavingedge!(vert::Vertex, oldedge::Hedge, newedge::Hedge)
+If two edges are provided, replace old edge by the new in the list of leaving edges.
+"""
+function setleavingedge!(vert::Vertex, oldedge::Hedge, newedge::Hedge)
+    for i in 1:3
+        if !isassigned(vert.leavingEdges,i) break end
+        if vert.leavingEdges[i] == oldedge
+            vert.leavingEdges[i] = newedge
+            break
+        end
+    end
+end
+export setleavingedge!
+
+function setleavingedges!(cells::Vector{Cell})
+    for i in 1:length(cells)
+        cell = cells[i]
+        for edge in cell
+            p1, p2 = edge.originVertex, edge.nextEdge.originVertex
+            setleavingedge!(p1, edge)
+        end
+    end
+end
+export setleavingedges!
+
+"""
+    findthisvert(vert::Vertex, vertices::Vector{Vertex})
+Find a vertex in a list of vertices and return its index, and 0 if not found
+"""
 function findthisvert(vert::Vertex, vertices::Vector{Vertex})
     found = 0 # inde
     for i in 1:length(vertices)
@@ -141,22 +237,36 @@ function findthisvert(vert::Vertex, vertices::Vector{Vertex})
     return found
 end # findthisvert
 
-# Gets all verts in a cell, the vert reference is the index on the vertex list
-# Arguments: connectivity matrix (from file)
-# Return: Vector of vectors with the vertex in each cell for all cells
-function getcellverts(lines::Vector{String}, info::Vector{Int})
+"""
+    getcellverts_table(lines::Vector{String}, info::Vector{Int})
+Builds cell verts table from the processed input file.
+
+The vert reference is the index on the coordinate table.
+"""
+function getcellverts_table(lines::Vector{String}, info::Vector{Int})
     cellverts = Vector{Vector{Int}}()
-    vertsInCells = Vector{Int}(undef, info[2])
     for i in 1:info[1]
-        vertsInCells[:] = [parse(Int,str) for str in split(lines[i])]
-        push!(cellverts,vertsInCells[vertsInCells .> 0])
+        push!(cellverts, [parse(Int,str) for str in split(lines[i])])
     end
     return cellverts
+end # getcellverts_table
+
+"""
+    getcellverts(cell::Cell)
+Transverse a cell and return the list of vertex objects
+"""
+function getcellverts(cell::Cell)
+    verts = Vector{Vertex}()
+    for edge in cell
+        push!(verts,edge.originVertex)
+    end
+    return verts
 end # getcellverts
 
-# Gets the number of verts in each cell
-# Arguments: connectivity matrix
-# Return: vector with cell sizes
+"""
+    getcellsizes(cellverts::Vector{Vector{Int}})
+Gets the number of verts in each cell (cell sizes) from the cell verts table
+"""
 function getcellsizes(cellverts::Vector{Vector{Int}})
     cellsizes = Vector{Int64}(undef,size(cellverts))
     for i in 1:length(cellverts)
@@ -165,9 +275,10 @@ function getcellsizes(cellverts::Vector{Vector{Int}})
     return cellsizes
 end # getcellsizes
 
-# Update cell measures
-# Arguments: a cell object
-# Return: float number storing the distance
+"""
+    updatecell!(cell::Cell)
+Update cell area, perimeter and centroid
+"""
 function updatecell!(cell::Cell)
     sumArea = 0.0
     sumPerim = 0.0
@@ -177,25 +288,26 @@ function updatecell!(cell::Cell)
     # loop over vertex and get the measurements
     for edge in cell
         p1, p2 = edge.originVertex, edge.nextEdge.originVertex
-        setleavingedge!(p1, edge)
-        sumArea += p1.x*p2.y - p2.x*p1.y
-        sumPerim += edge.edgeLen#distvertices(p1,p2)
-        xcent += (p1.x + p2.x) * sumArea
-        ycent += (p1.y + p2.y) * sumArea
+        #setleavingedge!(p1, edge)
+        sumArea += (p1.x*p2.y - p2.x*p1.y)
+        xcent += (p1.x + p2.x) * (p1.x*p2.y - p2.x*p1.y)
+        ycent += (p1.y + p2.y) * (p1.x*p2.y - p2.x*p1.y)
+        sumPerim += (distvertices(p1,p2))
     end
 
     # Update the values
     cell.areaCell = 0.5*sumArea
-    cell.centroid = createvertex([xcent/(6.0*cell.areaCell), ycent/(6.0*cell.areaCell)])
+    cell.centroid.x, cell.centroid.y = [xcent/(6.0*cell.areaCell), ycent/(6.0*cell.areaCell)]
     cell.perimCell = sumPerim
 
     return cell
 end # updatecell
 export updatecell!
 
-# Invert the order of the vertices in a cell
-# Arguments: a cell object
-# Return: cell object corrected
+"""
+    invertcell!(cell::Cell)
+Invert the order of the vertices in a cell object.
+"""
 function invertcell!(cell::Cell)
     for edge in cell
         edge.nextEdge, edge.prevEdge = edge.prevEdge, edge.nextEdge
@@ -203,20 +315,10 @@ function invertcell!(cell::Cell)
     end
 end # invertcell
 
-# Transverse a cell and return the list of vertices
-# Arguments: a cell object
-# Return: list of vertices objects
-function getcellverts(cell::Cell)
-    verts = Vector{Vertex}()
-    for edge in cell
-        push!(verts,edge.originVertex)
-    end
-    return verts
-end # getcellverts
-
-# Build the verts of edge table, and then
-# Arguments: vertices in each cell
-# Return: verts in each edge foe all edges
+"""
+    getedgeverts(cellverts::Vector{Vector{Int64}})
+Get the edge verts table from the cell verts table.
+"""
 function getedgeverts(cellverts::Vector{Vector{Int64}})
     edgeverts = Vector{Vector{Int64}}()
     for i in 1:size(cellverts,1)
@@ -228,21 +330,25 @@ function getedgeverts(cellverts::Vector{Vector{Int64}})
     return edgeverts
 end # getedgeverts
 
-# Create list of edges and assign the origin vertex to all of them
-# Arguments: edge list, vertex list and vertsInEdge table
-# Return: edge list updated
+"""
+    findorigin!(edges::Vector{Hedge}, vertices::Vector{Vertex}, vertsInEdge)
+Create list of edges and assign the origin vertex to all of them.
+"""
 function findorigin!(edges::Vector{Hedge}, vertices::Vector{Vertex}, vertsInEdge)
     for i in 1:size(vertsInEdge,1)
         edges[i] = Hedge()
+        edges[i].id = i
         vert = vertices[vertsInEdge[i,1]]
         edges[i].originVertex = vertices[vertsInEdge[i,1]][1]
     end
 end # findorigin
 
-# Assign the next edge field in list of edges
-# NOTE: This function requires a list of the number of vertices per cell
-# Arguments: edge list, list of cell sizes and vertsInEdge table
-# Return: edge list updated
+"""
+    findnext!(edges::Vector{Hedge}, vertsinedge, cellsizes)
+Assign the next edge field in list of edges.
+
+Requires a list of the verts in all edges and a list pf number of verts per cell.
+"""
 function findnext!(edges::Vector{Hedge}, vertsInEdge::Vector{Vector{Int64}}, cellsizes::Vector{Int64})
     edgecell = 1 # count the number of edges that I intereact in a cell
     icell = 1 # count the cells
@@ -258,17 +364,19 @@ function findnext!(edges::Vector{Hedge}, vertsInEdge::Vector{Vector{Int64}}, cel
     end
 end # findnext
 
-# Assign the previous edge field in list of edges
-# NOTE: This function requires a list of the number of vertices per cell
-# Arguments: edge list, list of cell sizes and vertsInEdge table
-# Return: edge list updated
+"""
+    findprevious!(edges::Vector{Hedge}, vertsInEdge, cellsizes)
+Assign the previous edge field for each edge in the list provided.
+
+Requires an array with the vert index of each edge and one with the number of vertices per cell.
+"""
 function findprevious!(edges::Vector{Hedge}, vertsInEdge::Vector{Vector{Int64}}, cellsizes::Vector{Int64})
     edgecell = 1 # count the number of edges that I intereact in a given cell
-    icell = 1  # count the cells
+    icell = length(cellsizes)  # count the cells
     for i in reverse(1:size(vertsInEdge,1))
         if edgecell == cellsizes[icell]
             edges[i].prevEdge = edges[i+cellsizes[icell]-1]
-            icell += 1
+            icell -= 1
             edgecell = 1
             continue
         end
@@ -277,14 +385,17 @@ function findprevious!(edges::Vector{Hedge}, vertsInEdge::Vector{Vector{Int64}},
     end
 end # findnext
 
-# Find the twins of edges in list of edges
-# Arguments: array of vertex index in each edge, number or edges
-# Return: list of edge objects
-function findtwinedges!(provEdges::Vector{Hedge}, vertsInEdge::Vector{Vector{Int64}}, nEdges::Int64)
+"""
+    findtwinedges!(edges::Vector{Hedge}, vertsInEdge)
+Assign the edge twin field for each edge in the list provided.
+
+Requires an array of vertex index in each edge.
+"""
+function findtwinedges!(provEdges::Vector{Hedge}, vertsInEdge::Vector{Vector{Int64}})
     ntwins = 0
-    for i in 1:nEdges
+    for i in 1:length(vertsInEdge)
         verts = reverse(vertsInEdge[i,:][1])
-        for j in 1:nEdges
+        for j in 1:length(vertsInEdge)
             all(verts == 0) && break
             i == j && continue
             found = all(vertsInEdge[j,:][1] == verts)
@@ -297,14 +408,17 @@ function findtwinedges!(provEdges::Vector{Hedge}, vertsInEdge::Vector{Vector{Int
     end
 end # findtwinedges!
 
-# Find the container cell of each edge
-# Arguments: edges list, cell list and cell sizes
-# Return: list of edge objects updated
+"""
+    findcontainercell!(edges::Vector{Hedge}, cells::Vector{Cell}, cellsizes)
+Assign the container cell field for each edge in the list provided.
+
+Requires an array of vertex index in each edge.
+"""
 function findcontainercell!(edges::Vector{Hedge}, cells::Vector{Cell}, cellsizes)
     edgeid = 1
     cellid = 1
     for i in 1:size(edges,1)
-        if edgeid == size(cellsizes[cellid],1)
+        if edgeid > cellsizes[cellid]
             edgeid = 1
             cellid += 1
         end
@@ -313,17 +427,20 @@ function findcontainercell!(edges::Vector{Hedge}, cells::Vector{Cell}, cellsizes
     end
 end
 
-# Find the edges located at the border in list of edges
-# NOTE: Run only after the instantiation!!!!
-# Arguments: list of edges
-# Return: list of edge objects
+"""
+    setedgeborder!(edge::Hedge)
+Assign the border field for an edge at the border.
+
+Use this run after all the other edge fields had been assigned. A border edge does not have twin!
+"""
 function setedgeborder!(edge::Hedge)
     edge.border = !isdefined(edge, :twinEdge)
 end # assignborders
 
-# Update edge length
-# Arguments: edge object
-# Return: edge object with length updated
+"""
+    newedgelen!(edge::Hedge)
+Update edge length
+"""
 function newedgelen!(edge::Hedge)
     p1 = edge.originVertex
     p2 = edge.nextEdge.originVertex
@@ -331,19 +448,43 @@ function newedgelen!(edge::Hedge)
 end # newedgelen
 export newedgelen!
 
-# Create the list of cells and assign the incident edge for each cell
-# Arguments: cell list, edge list and list of cell sizes
-# Return: cell list updated
+"""
+    createlistcell(edges::Vector{Hedge}, cellsizes)
+Create the list of cells and assign the incident edge for each cell
+"""
 function createlistcell(edges::Vector{Hedge}, cellsizes)
     cells =  Array{Cell}(undef,size(cellsizes,1))
     edgeid = 1
     for i in 1:size(cellsizes,1)
         cells[i] = Cell()
+        cells[i].id = i
         cells[i].incEdge = edges[edgeid]
+        cells[i].centroid = createvertex([0.0,0.0])
         edgeid += cellsizes[i]
     end
     return cells
 end # createlistcell
+
+function addtomesh!(mesh::Mesh, vert::Vertex)
+    push!(mesh.vertices, vert)
+    mesh.lastid[1] += 1
+    vert.id = mesh.lastid[1]
+end
+export addtomesh!
+
+function addtomesh!(mesh::Mesh, edge::Hedge)
+    push!(mesh.edges, edge)
+    mesh.lastid[2] += 1
+    edge.id = mesh.lastid[2]
+end
+export addtomesh!
+
+function addtomesh!(mesh::Mesh, cell::Cell)
+    push!(mesh.cells, cell)
+    mesh.lastid[3] += 1
+    cell.id = mesh.lastid[3]
+end
+export addtomesh!
 
 # Import mesh from file, and represent it as a DCEL object
 # Arguments: file path
@@ -358,7 +499,7 @@ function importfromfile(filePath::String)
 
     # Put edges and cells inside arrays
     cellListInfo = [parse(Int,str) for str in split(popfirst!(allLines))]
-    cellverts = getcellverts(allLines,cellListInfo)
+    cellverts = getcellverts_table(allLines,cellListInfo)
     cellsizes = getcellsizes(cellverts)
     vertsInEdge = getedgeverts(cellverts)
 
@@ -367,7 +508,7 @@ function importfromfile(filePath::String)
     findorigin!(edges, vertices, vertsInEdge)
     findnext!(edges, vertsInEdge, cellsizes)
     findprevious!(edges, vertsInEdge, cellsizes)
-    findtwinedges!(edges,vertsInEdge,size(vertsInEdge,1))
+    findtwinedges!(edges,vertsInEdge)
 
     # Create list of cells
     cells = createlistcell(edges,cellsizes)
@@ -375,58 +516,77 @@ function importfromfile(filePath::String)
     # connect cells and edges lists
     findcontainercell!(edges,cells,cellsizes)
 
-    return Dcel(vertices,edges,cells)
+    # Define the largest id for verts, edges and cells
+    lastids = [length(vertices), length(edges), length(cells)]
+    # get the edges leaving each vert
+    setleavingedges!(cells)
+
+    return Mesh(vertices,edges,cells, lastids)
 end # importfromfile
 
 # Update the measures of the mesh, namely cell areas and perimeters and edge lens
 # Arguments: DCEL object
 # Return: DCEL object
-function updatesystem!(system::Dcel)
+function updatesystem!(system::Mesh)
 
     # Update cells
-    for i in 1:length(system.listCell)
-        updatecell!(system.listCell[i])
-        # if(system.listCell[i].areaCell < 0.0)
-        #     invertcell!(system.listCell[i])
-        #     updatecell!(system.listCell[i])
+    for i in 1:length(system.cells)
+        updatecell!(system.cells[i])
+        # if(system.cells[i].areaCell < 0.0)
+        #     invertcell!(system.cells[i])
+        #     updatecell!(system.cells[i])
         # end
     end
 
     # Update edges
-    for i in 1:length(system.listEdge)
-        newedgelen!(system.listEdge[i])
-        setedgeborder!(system.listEdge[i])
+    for i in 1:length(system.edges)
+        newedgelen!(system.edges[i])
+        setedgeborder!(system.edges[i])
     end
+
+    # Update vertices
 end # updatesystem
 
 # Export Dcel object to file
 # Arguments: file path
 # Return: DCEL object
-function exporttofile(mesh::Dcel)
+function exporttofile(mesh::Mesh)
 
     # Create the coordinates list
-    coords = Array{Float64}(undef, length(mesh.listVert), 2)
-    for i in 1:length(mesh.listVert)
-        coords[i,:] = [mesh.listVert[i].x, mesh.listVert[i].y]
-    end
+    coords = extract_vertcoords(mesh)
 
     # Create the connectivity list
-    celltab = []
-    for cell in 1:length(mesh.listCell)
-        verts_cells = getcellverts(mesh.listCell[cell])
-        vertids = [findthisvert(verts_cells[vert], mesh.listVert) for vert in 1:length(verts_cells)]
-        push!(celltab, vertids)
-    end
+    celltab = vertsincells(mesh)
 
-    open("/home/jhon/Documents/Projects/vertexModelJulia/results/ex3_out.txt", "w") do out
-        nvert = length(mesh.listVert)
+    open("/home/jhon/Documents/Projects/vertexModelJulia/results/epi.txt", "w") do out
+        nvert = length(mesh.vertices)
         write(out, "$nvert\n")
         writedlm(out, coords)
-        ncell = length(mesh.listCell)
+        ncell = length(mesh.cells)
         write(out, "$ncell\n")
         writedlm(out, celltab)
     end
 end # exporttofile
 export exporttofile
+
+function extract_vertcoords(mesh::Mesh)
+    coords = Array{Float64}(undef, length(mesh.vertices), 2)
+    for i in 1:length(mesh.vertices)
+        coords[i,:] = [mesh.vertices[i].x, mesh.vertices[i].y]
+    end
+    return coords
+end
+export extract_vertcoords
+
+function vertsincells(mesh::Mesh)
+    celltab = []
+    for cell in 1:length(mesh.cells)
+        verts_cells = getcellverts(mesh.cells[cell])
+        vertids = [findthisvert(verts_cells[vert], mesh.vertices) for vert in 1:length(verts_cells)]
+        push!(celltab, vertids)
+    end
+    return celltab
+end
+export vertsincells
 
 end # module

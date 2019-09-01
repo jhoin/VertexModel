@@ -1,6 +1,6 @@
 module PointGeometry
 
-using ..DCEL
+using ..Meshes
 
 # Calculate the distance between two vertices
 # Arguments: two Vertex objects
@@ -25,18 +25,42 @@ function rotatepoints!(p1::Vertex, p2::Vertex)
     cy = (p1.y + p2.y) / 2.0
 
     # Change vertex coordinates
-    theta = -1.5
+    theta = -90.0* π/360.
     x1 = (  (p1.x - cx) * cos(theta) + (p1.y - cy) * sin(theta) ) + cx
     y1 = ( -(p1.x - cx) * sin(theta) + (p1.y - cy) * cos(theta) ) + cy
 
     x2 = (  (p2.x - cx) * cos(theta) + (p2.y - cy) * sin(theta) ) + cx
     y2 = ( -(p2.x - cx) * sin(theta) + (p2.y - cy) * cos(theta) ) + cy
 
-    # update the object
+    # update the objects
     p1.x,p1.y = x1,y1
     p2.x,p2.y = x2,y2
 end # rotatepoints
 export rotatepoints!
+
+# Rotate an edge around the first point
+# Arguments: two vertices
+# Return: vertices with positions updated
+function rotatepoint(p1::Vertex, p2::Vertex)
+
+    xy1 = [p1.x, p1.y]
+    ptranslated = [p2.x-p1.x, p2.y-p1.y]
+    angle_matrix = [cos(π) -sin(π); sin(π) cos(π)]
+
+    # Change vertex coordinates
+    xy2 = angle_matrix*ptranslated + xy1
+
+    cx = (p1.x + p2.x) / 2.0
+    cy = (p1.y + p2.y) / 2.0
+    theta = 1.5
+    x2 = (  (p2.x - p1.x) * cos(theta) + (p2.y - p1.x) * sin(theta) ) + p1.x
+    y2 = ( -(p2.x - p1.y) * sin(theta) + (p2.y - p1.y) * cos(theta) ) + p1.y
+    moveAngle = atan((p1.y - p2.y) / (p1.x - p2.x))
+
+    # update the object
+    return xy2
+end # rotatepoints
+export rotatepoint
 
 function intersection(p1::Vertex, p2::Vertex, p3::Vertex, p4::Vertex)
     a1 = p2.y - p1.y
@@ -52,6 +76,20 @@ function intersection(p1::Vertex, p2::Vertex, p3::Vertex, p4::Vertex)
     # If lines are parallel, intersection point will contain infinite values
     return createvertex([ (b2 * c1 - b1 * c2) / delta, (a1 * c2 - a2 * c1) / delta])
 end # intersection
+export intersection
+
+function intersection(line1::Array{Float64,2}, line2::Array{Float64,2})
+    a1 = line1[2,2] - line1[1,2]
+    b1 = line1[1,1] - line1[2,1]
+    c1 = a1 * line1[1,1] + b1 * line1[1,2]
+
+    a2 = line2[2,2] - line2[1,2]
+    b2 = line2[1,1] - line2[2,1]
+    c2 = a2 * line2[1,1] + b2 * line2[1,2]
+
+    delta = a1 * b2 - a2 * b1
+    return [(b2 * c1 - b1 * c2) / delta, (a1 * c2 - a2 * c1) / delta]
+end
 export intersection
 
 # Check if point c lies on the line segment formed by a and b
@@ -128,8 +166,10 @@ function extend_edge(edge::Hedge, minlen)
 
     # Move the points in the direction given by the above angle
     moveAngle = atan((p1.y - p2.y) / (p1.x - p2.x))
-    p2.x = p2.x + 0.30*minlen*cos(moveAngle)
-    p2.y = p2.y + 0.30*minlen*sin(moveAngle)
+    p2.x = p2.x + 0.15*minlen*cos(moveAngle)
+    p2.y = p2.y + 0.15*minlen*sin(moveAngle)
+    p1.x = p1.x + 0.15*minlen*cos(moveAngle)
+    p1.y = p1.y + 0.15*minlen*sin(moveAngle)
 
     # Update edge lenght
     newedgelen!(edge)
@@ -174,7 +214,6 @@ function get_shortaxis(cell::Cell)
     inertia_matrix = [ixx -ixy; -ixy  iyy]
     inertia_eigen = eigen(inertia_matrix)
     idx = findmax(inertia_eigen.values)[2]
-    println(inertia_eigen.vectors)
     axis_angle = inertia_eigen.vectors[idx,:]
 
     #centroid_displace = [axis_angle[1]+cell.centroid.x, axis_angle[2]+cell.centroid.y]
@@ -205,3 +244,4 @@ end # shortest_axis
 export shortest_axis
 
 end # end of module
+Meshes

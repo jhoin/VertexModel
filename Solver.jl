@@ -14,6 +14,7 @@ function uptade_local!(vert::Vertex)
         edge = vert.leavingEdges[i]
         cell = edge.containCell
         newedgelen!(edge)
+        !edge.border && newedgelen!(edge.twinEdge)
         updatecell!(cell)
         typeof(vert.treatBoundary) <: Spring && update_spring!(vert)
     end
@@ -113,7 +114,7 @@ function solve!(mesh::Mesh, t_final::Float64)
     newmesh = mesh
     while(t < t_final)
         t = n_iter*step_size
-        update_topology!(newmesh, 2.)
+        #update_topology!(newmesh, 2.)
 
         # Update vertex positions
         dx, dy = 0.001, 0.001
@@ -122,11 +123,7 @@ function solve!(mesh::Mesh, t_final::Float64)
             K = vert.leavingEdges[1].containCell.eqarea
             old_energy = energyvert(mesh.vertices[i], mesh.vertices[i].treatBoundary, K)
             ismissing(old_energy) && continue
-            disx = vert_displacex(vert, dx, old_energy, K)
-            disy = vert_displacey(vert, dy, old_energy, K)
-            vert.x = vert.x + disx*dx
-            vert.y = vert.y + disy*dy
-            uptade_local!(vert)
+            vert_displace!(vert, dx, old_energy, K)
         end
         n_iter += 1
         mesh = newmesh
@@ -189,6 +186,19 @@ function attempt_move!(vert::Vertex, radius::Float64)
     #vert.y = vert.y + rnd2*radius*sin(2.0*π*rnd1/rnd2)
 end
 
+function vert_displace!(vert::Vertex, d::Float64, old_energy::Float64, K::Float64)
+    directions = [90.0*π/360.0, 180.0*π/360.0, 270.0*π/360.0, 0.0*π/360.0]
+    coords = vert.x, vert.y
+
+    for i in 1:4
+        vert.x = vert.x + d*cos(directions[i])
+        vert.y = vert.y + d*sin(directions[i])
+        uptade_local!(vert)
+        new_energy = energyvert(vert, vert.treatBoundary, K)
+        new_energy < old_energy && break
+        vert.x, vert.y = coords
+    end
+end
 
 # Calculate the vertex displacement along the x axis
 # Arguments: vertex, an infinitesimal displacement and the vert energy before displacement

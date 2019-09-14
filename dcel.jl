@@ -3,7 +3,8 @@
 module Meshes
 
 using DelimitedFiles
-import Base: iterate, print
+import Base: iterate, length()
+import Base:(==)
 
 export importfromfile, updatesystem!, t1transition!
 abstract type AbstractMesh end
@@ -66,8 +67,7 @@ mutable struct Cell
     incEdge::Hedge
     perimCell::Float64
     areaCell::Float64
-    eqarea::Float64
-    eqperim::Float64
+    celltype::Int64
     area_elast::Float64
     perim_elast::Float64
     centroid::Vertex
@@ -85,6 +85,10 @@ mutable struct Mesh
     lastid::Vector{Int64}
 end
 export Mesh
+
+(==)(x::Hedge, y::Hedge) = x.id == y.id
+(==)(x::Cell, y::Cell) = x.id == y.id
+(==)(x::Vertex, y::Vertex) = x.id == y.id
 
 # Iterate over the vertices of a cell
 # Arguments: array of lines containing vertex coordinates
@@ -107,41 +111,30 @@ function Base.iterate(iter::Cell, state)
 end
 Base.eltype(iter::Cell) = Hedge
 
-# Show a summary of the given edge
-# Arguments: edge object
-# Return: summary on screen
-function Base.print(edge::Hedge)
-    println("Id: ",edge.id," Edge lenght: ", edge.edgeLen)
-    println("Origin vertex coordinates: ", edge.originVertex.x, " ", edge.originVertex.y)
-    println("Cell centroid: ", edge.containCell.centroid.x, " ", edge.containCell.centroid.y)
-    println("Border? ", edge.border, " ", isdefined(edge, :twinEdge))
-end
-
-# Show a summary of the given cell
-# Arguments: cell object
-# Return: summary on screen
-function Base.print(cell::Cell)
-    println("Id: ",cell.id," Cell area: ", cell.areaCell, " Cell perimeter: ", cell.perimCell)
-    println("Centroid coordinates: ", cell.centroid.x, " ", cell.centroid.y)
-end
-
-# Show a summary of the given vertex
-# Arguments: vertex object
-# Return: summary on screen
-function Base.print(vert::Vertex)
-    println("Coordinates: ", vert.x, " ", vert.y)
-    println("Boundary type: ", typeof(vert.treatBoundary))
-end
-
-# Create list of vertices
-# Arguments: array of lines containing vertex coordinates
-# Return: list of vertices objects
+"""
+    getvertexlist(lines::Array{String,1},nPoints::Integer)
+Create list of vertices from a string taken from file
+"""
 function getvertexlist(lines::Array{String,1},nPoints::Integer)
     pointCoords = Array{Float64}(undef,2)
     vertices = Array{Vertex}(undef,nPoints)
     for i in 1:nPoints
         pointCoords[:] = [parse(Float64,str) for str in split(popfirst!(lines))]
         vertex = createvertex(pointCoords)
+        vertex.id = i
+        vertices[i] = vertex
+    end # loop points
+    return vertices
+end # getvertexlist
+
+"""
+    getvertexlist(lines::Array{String,1}, nPoints::Integer)
+Create list of vertices from coordinate matrix
+"""
+function getvertexlist(coords::Array{Float64,2})
+    vertices = Array{Vertex}(undef,size(coords, 1))
+    for i in 1:size(coords, 1)
+        vertex = createvertex(coords[i,:])
         vertex.id = i
         vertices[i] = vertex
     end # loop points
@@ -175,9 +168,9 @@ function distvertices(p1::Vertex, p2::Vertex)
 end # distvertices
 export distvertices
 
-function update_spring!(vert::Vertex)
-    spring = vert.treatBoundary
-    len = sqrt((spring.x - vert.x)^2 + (spring.y - vert.y)^2)
+function update_spring!(spring::Spring)
+    #spring = vert.treatBoundary
+    len = sqrt((spring.x - spring.x)^2 + (spring.y - spring.y)^2)
     spring.len = len
 end
 export update_spring!
@@ -275,6 +268,21 @@ function getcellsizes(cellverts::Vector{Vector{Int}})
     return cellsizes
 end # getcellsizes
 
+function getcellsizes(cellverts::Array{Int64,2})
+    cellsizes = Vector{Int64}(undef,size(cellverts, 1))
+    row_size = size(cellverts, 2)
+    println(row_size)
+    for i in 1:size(cellverts, 1)
+        cellsize = 0
+        for j in 1:row_size
+            cellverts[i,j] <= 0 && break
+            cellsize += 1
+        end
+        cellsizes[i] = cellsize
+    end
+    return cellsizes
+end # getcellsizes
+
 """
     updatecell!(cell::Cell)
 Update cell area, perimeter and centroid
@@ -317,7 +325,7 @@ end # invertcell
 
 """
     getedgeverts(cellverts::Vector{Vector{Int64}})
-Get the edge verts table from the cell verts table.
+Get the edge verts table from the cell verts vector of vectors.
 """
 function getedgeverts(cellverts::Vector{Vector{Int64}})
     edgeverts = Vector{Vector{Int64}}()
@@ -326,6 +334,21 @@ function getedgeverts(cellverts::Vector{Vector{Int64}})
             push!(edgeverts,[cellverts[i][j], cellverts[i][j+1]])
         end
         push!(edgeverts,[cellverts[i][size(cellverts[i],1)], cellverts[i][1]])
+    end
+    return edgeverts
+end # getedgeverts
+
+"""
+    getedgeverts(cellverts::Array{Int64,2})
+Get the edge verts table from the cell verts table (as a matrix).
+"""
+function getedgeverts(cellverts::Array{Int64,2})
+    edgeverts = Vector{Vector{Int64}}()
+    for i in 1:size(cellverts,1)
+        for j in 1:size(cellverts[i,:],1)-1
+            push!(edgeverts,[cellverts[i,j], cellverts[i,j+1]])
+        end
+        push!(edgeverts,[cellverts[i,length(cellverts[i,:])], cellverts[i,:1]])
     end
     return edgeverts
 end # getedgeverts
@@ -459,6 +482,7 @@ function createlistcell(edges::Vector{Hedge}, cellsizes)
         cells[i] = Cell()
         cells[i].id = i
         cells[i].incEdge = edges[edgeid]
+        cells[i].celltype = 1
         cells[i].centroid = createvertex([0.0,0.0])
         edgeid += cellsizes[i]
     end
@@ -523,6 +547,34 @@ function importfromfile(filePath::String)
 
     return Mesh(vertices,edges,cells, lastids)
 end # importfromfile
+
+function createmesh(cellverts::Array{Int64,2}, coords::Array{Float64,2})
+
+    vertices = getvertexlist(coords)
+
+    # Create list of edges
+    vertsInEdge = getedgeverts(cellverts)
+    cellsizes = getcellsizes(cellverts)
+    edges = Array{Hedge}(undef,size(vertsInEdge,1))
+    findorigin!(edges, vertices, vertsInEdge)
+    findnext!(edges, vertsInEdge, cellsizes)
+    findprevious!(edges, vertsInEdge, cellsizes)
+    findtwinedges!(edges,vertsInEdge)
+
+    # Create list of cells
+    cells = createlistcell(edges,cellsizes)
+
+    # connect cells and edges lists
+    findcontainercell!(edges,cells,cellsizes)
+
+    # Define the largest id for verts, edges and cells
+    lastids = [length(vertices), length(edges), length(cells)]
+    # get the edges leaving each vert
+    setleavingedges!(cells)
+
+    return Mesh(vertices,edges,cells, lastids)
+end
+export createmesh
 
 # Update the measures of the mesh, namely cell areas and perimeters and edge lens
 # Arguments: DCEL object

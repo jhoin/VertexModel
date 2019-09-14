@@ -16,28 +16,28 @@ function uptade_local!(vert::Vertex)
         newedgelen!(edge)
         !edge.border && newedgelen!(edge.twinEdge)
         updatecell!(cell)
-        typeof(vert.treatBoundary) <: Spring && update_spring!(vert)
+        typeof(vert.treatBoundary) <: Spring && update_spring!(vert.treatBoundary)
     end
 end
 
 # Calculate the energy of a vertex for vertices without boundary treatment
 # Arguments: Vertex object and the treatment for boundary (nothing)
 # Return: A float representing the vertex energy
-function energyvert(vert::Vertex, boundary::Mobile)
-    energy_area = 0.0
-    energy_perim = 0.0
-    bond_energy = 0.0
-    for i in 1:3
-        if !isassigned(vert.leavingEdges, i) break end
-        edge = vert.leavingEdges[i]
-        cell = edge.containCell
-        energy_area += 0.5*cell.area_elast*(cell.areaCell - cell.eqarea)^2
-        energy_perim += 0.5*cell.perim_elast*cell.perimCell^2
-        bond_energy += edge.eqbond*edge.edgeLen
-    end
-    total_energy = energy_area + energy_perim + bond_energy
-    return total_energy
-end # energyvert
+# function energyvert(vert::Vertex, boundary::Mobile)
+#     energy_area = 0.0
+#     energy_perim = 0.0
+#     bond_energy = 0.0
+#     for i in 1:3
+#         if !isassigned(vert.leavingEdges, i) break end
+#         edge = vert.leavingEdges[i]
+#         cell = edge.containCell
+#         energy_area += 0.5*cell.area_elast*(cell.areaCell - cell.eqarea)^2
+#         energy_perim += 0.5*cell.perim_elast*cell.perimCell^2
+#         bond_energy += edge.eqbond*edge.edgeLen
+#     end
+#     total_energy = energy_area + energy_perim + bond_energy
+#     return total_energy
+# end # energyvert
 
 # Get a missing energy value for the fixed vertices
 # Arguments: vertex object and the treatment boundary
@@ -49,56 +49,73 @@ end
 # Calculate the energy of a vertex for vertices with spring boundary condition
 # Arguments: Vertex object and the treatment for boundary (spring type)
 # Return: A float representing the vertex energy
-function energyvert(vert::Vertex, boundary::Spring)
-    energy_area = 0.0
-    energy_perim = 0.0
-    bond_energy = 0.0
-    spring_term = 0.
-    for i in 1:3
-        if !isassigned(vert.leavingEdges, i) break end
-        edge = vert.leavingEdges[i]
-        cell = edge.containCell
-        energy_area += 0.5*cell.area_elast*(cell.areaCell - cell.eqarea)^2
-        spring_term = -vert.treatBoundary.spring_const * vert.treatBoundary.displaced
-        energy_perim += 0.5*cell.perim_elast*cell.perimCell^2
-        bond_energy += edge.eqbond*edge.edgeLen
-    end
-    total_energy = energy_area + energy_perim + bond_energy + spring_term
-    return total_energy
-end # energyvert
+# function energyvert(vert::Vertex, boundary::Spring)
+#     energy_area = 0.0
+#     energy_perim = 0.0
+#     bond_energy = 0.0
+#     spring_term = 0.
+#     for i in 1:3
+#         if !isassigned(vert.leavingEdges, i) break end
+#         edge = vert.leavingEdges[i]
+#         cell = edge.containCell
+#         energy_area += 0.5*cell.area_elast*(cell.areaCell - cell.eqarea)^2
+#         spring_term = -vert.treatBoundary.spring_const * vert.treatBoundary.displaced
+#         energy_perim += 0.5*cell.perim_elast*cell.perimCell^2
+#         bond_energy += edge.eqbond*edge.edgeLen
+#     end
+#     total_energy = energy_area + energy_perim + bond_energy + spring_term
+#     return total_energy
+# end # energyvert
 
 function energyvert(vert::Vertex, boundary::Spring, K::Float64)
     energy_area = 0.0
     energy_perim = 0.0
     bond_energy = 0.0
-    spring_term = 0.
+    spring_term = 0.0
     rootK = sqrt(K)
     for i in 1:3
         if !isassigned(vert.leavingEdges, i) break end
         edge = vert.leavingEdges[i]
         cell = edge.containCell
-        energy_area += 0.5*(cell.areaCell/K - 1.0)^2
-        spring_term = vert.treatBoundary.spring_const*vert.treatBoundary.len / rootK
-        energy_perim += 0.5*cell.perim_elast*cell.perimCell^2 / K
-        bond_energy += edge.eqbond*edge.edgeLen/rootK
+        energy_area= energy_area + 0.5*(cell.areaCell/K - 1.0)^2.
+        spring = vert.treatBoundary
+        spring_term = spring_term + spring.spring_const * spring.len / rootK
+        energy_perim = energy_perim + 0.5*cell.perim_elast*cell.perimCell^2 / K
+        bond_energy = bond_energy + edge.eqbond*edge.edgeLen/rootK
     end
     total_energy = energy_area + energy_perim + bond_energy + spring_term
     return total_energy
 end # energyvert
 
+function update_areaenergy!(energy_area::Float64, cell::Cell, K::Float64)
+    energy_area= energy_area + 0.5*(cell.areaCell/K - 1.0)^2.
+end
+
+function update_perimenergy!(energy_perim::Float64, cell::Cell, K::Float64)
+    energy_perim = energy_perim + 0.5*cell.perim_elast*cell.perimCell^2 / K
+end
+
+function update_bondenergy!(energy_bond::Float64, edge::Hedge, rootK::Float64)
+    energy_bond = energy_bond + edge.eqbond*edge.edgeLen/rootK
+end
+
+function update_springterm!(spring_term::Float64, spring::Spring, rootK::Float64)
+    spring_term = spring_term + spring.spring_const * spring.len / rootK
+end
+
 function energyvert(vert::Vertex, boundary::Mobile, K::Float64)
     energy_area = 0.0
     energy_perim = 0.0
     bond_energy = 0.0
-    spring_term = 0.
+    spring_term = 0.0
     rootK = sqrt(K)
     for i in 1:3
         if !isassigned(vert.leavingEdges, i) break end
         edge = vert.leavingEdges[i]
         cell = edge.containCell
-        energy_area += 0.5*(cell.areaCell/K - 1.0)^2
-        energy_perim += 0.5*cell.perim_elast*cell.perimCell^2 / K
-        bond_energy += edge.eqbond*edge.edgeLen/rootK
+        energy_area= energy_area + 0.5*(cell.areaCell/K - 1.0)^2.
+        energy_perim = energy_perim + 0.5*cell.perim_elast*cell.perimCell^2 / K
+        bond_energy = bond_energy + edge.eqbond*edge.edgeLen/rootK
     end
     total_energy = energy_area + energy_perim + bond_energy + spring_term
     return total_energy
@@ -107,21 +124,20 @@ end # energyvert
 # Solve the system of equations using the forward Euler method
 # Arguments: Mesh object and final time
 # Return: Mesh object updated
-function solve!(mesh::Mesh, t_final::Float64)
+function solve!(mesh::Mesh, t_final::Float64, K::Float64)
     n_iter = 0
     step_size = 0.001
     t = 0.0
     newmesh = mesh
     while(t < t_final)
         t = n_iter*step_size
-        #update_topology!(newmesh, 2.)
+        update_topology!(newmesh, 0.1, K)
 
         # Update vertex positions
         dx, dy = 0.001, 0.001
         for i in 1:length(newmesh.vertices)
             vert = newmesh.vertices[i]
-            K = vert.leavingEdges[1].containCell.eqarea
-            old_energy = energyvert(mesh.vertices[i], mesh.vertices[i].treatBoundary, K)
+            old_energy = energyvert(newmesh.vertices[i], newmesh.vertices[i].treatBoundary, K)
             ismissing(old_energy) && continue
             vert_displace!(vert, dx, old_energy, K)
         end
@@ -132,44 +148,44 @@ function solve!(mesh::Mesh, t_final::Float64)
 end #solve!
 export solve!
 
-function solve!(mesh::Mesh, n_iter::Int64)
-    iter = 1
-    while iter <= n_iter
-
-        # Update all new variables!
-        newmesh = mesh
-        update_topology!(newmesh, 2.0)
-
-        # Get a random vertex and calculate its energy
-        vert = newmesh.vertices[1 + trunc(Int, (length(newmesh.vertices)+1-1)*rand())]
-        K = vert.leavingEdges[1].containCell.eqarea
-        old_energy = energyvert(vert, vert.treatBoundary, K)
-
-        # Move the vertex
-        attempt_move!(vert, 0.3)
-        uptade_local!(vert)
-
-        # Calculate the vertex energy after moving
-        new_energy = energyvert(vert, vert.treatBoundary, K)
-
-        # Accept this iteration?
-        #isAccepted = "N"
-        #call random_number(rnd)
-        #probAccept = exp((newVertEnergy - oldVertEnergy)/T)
-        #call random_number(rnd)
-        probAccept = 0.05
-        if new_energy < old_energy || probAccept < rand()
-
-            #Update all variables!
-            mesh = newmesh
-
-            #Mark the iteration as accepted
-            #isAccepted = "Y"
-        end
-        iter = iter + 1
-    end
-end
-export solve!
+# function solve!(mesh::Mesh, n_iter::Int64)
+#     iter = 1
+#     while iter <= n_iter
+#
+#         # Update all new variables!
+#         newmesh = mesh
+#         update_topology!(newmesh, 2.0)
+#
+#         # Get a random vertex and calculate its energy
+#         vert = newmesh.vertices[1 + trunc(Int, (length(newmesh.vertices)+1-1)*rand())]
+#         K = vert.leavingEdges[1].containCell.eqarea
+#         old_energy = energyvert(vert, vert.treatBoundary, K)
+#
+#         # Move the vertex
+#         attempt_move!(vert, 0.3)
+#         uptade_local!(vert)
+#
+#         # Calculate the vertex energy after moving
+#         new_energy = energyvert(vert, vert.treatBoundary, K)
+#
+#         # Accept this iteration?
+#         #isAccepted = "N"
+#         #call random_number(rnd)
+#         #probAccept = exp((newVertEnergy - oldVertEnergy)/T)
+#         #call random_number(rnd)
+#         probAccept = 0.05
+#         if new_energy < old_energy || probAccept < rand()
+#
+#             #Update all variables!
+#             mesh = newmesh
+#
+#             #Mark the iteration as accepted
+#             #isAccepted = "Y"
+#         end
+#         iter = iter + 1
+#     end
+# end
+# export solve!
 
 function attempt_move!(vert::Vertex, radius::Float64)
     rnd1 = rand()
@@ -189,7 +205,6 @@ end
 function vert_displace!(vert::Vertex, d::Float64, old_energy::Float64, K::Float64)
     directions = [90.0*π/360.0, 180.0*π/360.0, 270.0*π/360.0, 0.0*π/360.0]
     coords = vert.x, vert.y
-
     for i in 1:4
         vert.x = vert.x + d*cos(directions[i])
         vert.y = vert.y + d*sin(directions[i])

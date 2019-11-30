@@ -6,13 +6,17 @@ using ..PointGeometry
 # Check for topological changes in mesh
 # Arguments: mesh
 # Return: updated mesh
-function update_topology!(mesh::Mesh, minlen::Float64)
+function update_topology!(mesh::Mesh, minlen::Float64, K::Float64,minarea::Float64)
 
     #cell_division!(mesh, mesh.cells[13])
     for i in 1:size(mesh.cells,1)
         cell = mesh.cells[i]
-        if cell.areaCell > 2.5*cell.eqarea
-            cell_division!(mesh, mesh.cells[i])
+        if cell.areaCell > 2.5*K
+            cell_division!(mesh, cell)
+        end
+        if cell.areaCell < minarea
+            #length(cell) >= 4 && t1transition!(cell.incEdge, minlen)
+            println(cell.id, " ", length(cell))
         end
     end
 
@@ -22,7 +26,7 @@ function update_topology!(mesh::Mesh, minlen::Float64)
         halt = check_t1(mesh.edges[i])
         halt && continue
         if mesh.edges[i].edgeLen < minlen
-            println(mesh.edges[i].id," ",mesh.edges[i].containCell.id)
+            println(mesh.edges[i].id)
             t1transition!(mesh.edges[i], minlen)
             break
         end
@@ -119,7 +123,7 @@ end # addedgeat
 # Return: mesh object with new
 function addedgeat!(mesh::Mesh, prev_edge::Hedge, vert::Vertex)
     edge = Hedge() # Edge created by the intersection
-    addtomesh!(mesh, edge)
+    #addtomesh!(mesh, edge)
     edge.originVertex = vert
     setleavingedge!(vert, edge)
     edge.border = prev_edge.border
@@ -199,10 +203,10 @@ function cell_division!(mesh::Mesh, cell::Cell)
 
     # Topological changes in cells
     new_cell = Cell()
-    new_cell.centroid = createvertex([0.0,0.0])
+    new_cell.centroid = Vertex([0.0,0.0])
     addtomesh!(mesh, new_cell)
-    new_cell.eqarea = cell.eqarea
-    new_cell.eqperim = cell.eqperim
+    #new_cell.eqarea = cell.eqarea
+    #new_cell.eqperim = cell.eqperim
     new_cell.area_elast = cell.area_elast
     new_cell.perim_elast = cell.perim_elast
     new_cell.incEdge = focal2
@@ -253,5 +257,9 @@ function split_twin!(mesh::Mesh, crossed::Hedge, split::Hedge, vert::Vertex)
     return split_twin
 end
 
+function cell_extrusion!(mesh::Mesh, cell::Cell)
+    # pick the first vertex and move to the center
+    # store the
+end
 
 end # module

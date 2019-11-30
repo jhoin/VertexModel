@@ -74,7 +74,7 @@ function intersection(p1::Vertex, p2::Vertex, p3::Vertex, p4::Vertex)
     delta = a1 * b2 - a2 * b1
 
     # If lines are parallel, intersection point will contain infinite values
-    return createvertex([ (b2 * c1 - b1 * c2) / delta, (a1 * c2 - a2 * c1) / delta])
+    return Vertex([ (b2 * c1 - b1 * c2) / delta, (a1 * c2 - a2 * c1) / delta])
 end # intersection
 export intersection
 
@@ -135,14 +135,14 @@ end
 function lineintersect(slope1, slope2, sect1, sect2)
     x = (sect2 - sect1) / (slope1 - slope2)
     y = (slope1*sect2 - slope2*sect1) / (slope1 - slope2)
-    return createvertex([x, y])
+    return Vertex([x, y])
 end # lineintersect
 
 function lineintersect(p1::Vertex, p2::Vertex, p3::Vertex, p4::Vertex)
     x_num = (p1.x*p2.y - p1.y*p2.x)*(p3.x - p4.x) - (p1.x - p2.x)*(p3.x*p4.y - p3.y*p4.x)
     y_num = (p1.x*p2.y - p1.y*p2.x)*(p3.y - p4.y) - (p1.y - p2.y)*(p3.x*p4.y - p3.y*p4.x)
     den = (p1.x - p2.x)*(p3.y - p4.y) - (p1.y - p2.y)*(p3.x - p4.x)
-    return createvertex([x_num/den, y_num/den])
+    return Vertex([x_num/den, y_num/den])
 end
 
 # Check if point lies in an edge
@@ -166,10 +166,10 @@ function extend_edge(edge::Hedge, minlen)
 
     # Move the points in the direction given by the above angle
     moveAngle = atan((p1.y - p2.y) / (p1.x - p2.x))
-    p2.x = p2.x + 0.15*minlen*cos(moveAngle)
-    p2.y = p2.y + 0.15*minlen*sin(moveAngle)
-    p1.x = p1.x + 0.15*minlen*cos(moveAngle)
-    p1.y = p1.y + 0.15*minlen*sin(moveAngle)
+    p2.x = p2.x + 0.3*minlen*cos(moveAngle)
+    p2.y = p2.y + 0.3*minlen*sin(moveAngle)
+    p1.x = p1.x + 0.3*minlen*cos(moveAngle)
+    p1.y = p1.y + 0.3*minlen*sin(moveAngle)
 
     # Update edge lenght
     newedgelen!(edge)
@@ -218,14 +218,14 @@ function get_shortaxis(cell::Cell)
 
     #centroid_displace = [axis_angle[1]+cell.centroid.x, axis_angle[2]+cell.centroid.y]
     centroid_displace = [axis_angle[1]+1.0, axis_angle[2]+1.0]
-    return createvertex(centroid_displace)
+    return Vertex(centroid_displace)
 end # get_shortaxis
 
 # Get short axis as the perpendicar line to the farthest point
 # Arguments: cell object
 # Return: Vertex in the direction of the shortest axis
 function shortest_axis(cell::Cell)
-    farthest = Vertex()
+    farthest = Vertex([0.0, 0.0])
     dist = 0.0
     for edge in cell
         p1 = edge.originVertex
@@ -239,9 +239,8 @@ function shortest_axis(cell::Cell)
     x = cell.centroid.x + 0.1*cos(angle_change)
     y = cell.centroid.y + 0.1*sin(angle_change)
 
-    return createvertex([x,y])
+    return Vertex([x,y])
 end # shortest_axis
 export shortest_axis
 
 end # end of module
-Meshes

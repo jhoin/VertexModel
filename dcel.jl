@@ -3,12 +3,13 @@
 module Meshes
 
 using DelimitedFiles
-import Base: iterate, length()
+import Base: iterate, length, show
 import Base:(==)
 
 export importfromfile, updatesystem!, t1transition!
-abstract type AbstractMesh end
 abstract type AbstractBoundary end
+abstract type AbstractLine end
+abstract type AbstractFace end
 
 mutable struct Vertex
     x::Float64
@@ -17,7 +18,7 @@ mutable struct Vertex
     leavingEdges
     treatBoundary::AbstractBoundary
 
-    Vertex() = new()
+    Vertex(coords::Vector{Float64}) = createvertex(new(), coords)
 end
 export Vertex
 
@@ -47,7 +48,7 @@ end
 export Mobile
 
 # This object holds the half edge information
-mutable struct Hedge
+mutable struct Hedge <: AbstractLine
     twinEdge::Hedge
     nextEdge::Hedge
     prevEdge::Hedge
@@ -57,13 +58,12 @@ mutable struct Hedge
     border::Bool
     eqbond::Float64
     id::Int64
-
-    Hedge() = new()
+    Hedge() = create_hedge(new())
 end
 export Hedge
 
 # This object holds the cell information
-mutable struct Cell
+mutable struct Cell <: AbstractFace
     incEdge::Hedge
     perimCell::Float64
     areaCell::Float64
@@ -78,13 +78,32 @@ end
 export Cell
 
 # contains the whole mesh
-mutable struct Mesh
+struct Mesh
     vertices::Vector{Vertex}
     edges::Vector{Hedge}
     cells::Vector{Cell}
     lastid::Vector{Int64}
 end
 export Mesh
+
+struct SubMesh
+    vert::Vertex
+    edges::Vector{Hedge}
+    cells::Vector{Cell}
+    unitlen::Float64
+    #SubMesh(vert::Vertex, unitlen::Float64) = get_submesh(new(), vert, unitlen)
+end
+export SubMesh
+
+function get_submesh(vert::Vertex, unitlen::Float64)
+    edges = collect(skipmissing(vert.leavingEdges))
+    cells = Vector{Cell}(undef, length(edges))
+    for i in 1:length(edges)
+        cells[i] = edges[i].containCell
+    end
+    submesh = SubMesh(vert, edges, cells, unitlen)
+end
+export get_submesh
 
 (==)(x::Hedge, y::Hedge) = x.id == y.id
 (==)(x::Cell, y::Cell) = x.id == y.id
@@ -111,6 +130,24 @@ function Base.iterate(iter::Cell, state)
 end
 Base.eltype(iter::Cell) = Hedge
 
+function Base.length(cell::Cell)
+    len = 0
+    for edge in cell
+        len += 1
+    end
+    return len
+end
+
+function Base.length(mesh::SubMesh)
+    return length(mesh.edges)
+end
+
+function Base.show(mesh::Mesh)
+    println("Number of vertices: ",length(mesh.vertices))
+    println("Number of edges: ",length(mesh.edges))
+    println("Number of cells: ",length(mesh.cells))
+end
+
 """
     getvertexlist(lines::Array{String,1},nPoints::Integer)
 Create list of vertices from a string taken from file
@@ -120,7 +157,7 @@ function getvertexlist(lines::Array{String,1},nPoints::Integer)
     vertices = Array{Vertex}(undef,nPoints)
     for i in 1:nPoints
         pointCoords[:] = [parse(Float64,str) for str in split(popfirst!(lines))]
-        vertex = createvertex(pointCoords)
+        vertex = Vertex(pointCoords)
         vertex.id = i
         vertices[i] = vertex
     end # loop points
@@ -134,7 +171,7 @@ Create list of vertices from coordinate matrix
 function getvertexlist(coords::Array{Float64,2})
     vertices = Array{Vertex}(undef,size(coords, 1))
     for i in 1:size(coords, 1)
-        vertex = createvertex(coords[i,:])
+        vertex = Vertex(coords[i,:])
         vertex.id = i
         vertices[i] = vertex
     end # loop points
@@ -145,14 +182,19 @@ end # getvertexlist
     createvertex(pointCoords)
 Create a new Vertex object from two coordinates and return it.
 """
-function createvertex(pointCoords::Vector{Float64})
-    vert = Vertex()
+function createvertex(vert::Vertex, pointCoords::Vector{Float64})
     vert.x = pointCoords[1]
     vert.y = pointCoords[2]
-    vert.leavingEdges = Vector{Hedge}(undef,3)
+    vert.leavingEdges = Vector{Union{Missing,Hedge}}(missing,3)
     return vert
 end
 export createvertex
+
+function create_hedge(edge::Hedge)
+    #edge.originVertex = vert
+    edge.containCell = Cell()
+    return edge
+end
 
 # Calculate the distance between two vertices
 # Arguments: two Vertex objects
@@ -169,7 +211,6 @@ end # distvertices
 export distvertices
 
 function update_spring!(spring::Spring)
-    #spring = vert.treatBoundary
     len = sqrt((spring.x - spring.x)^2 + (spring.y - spring.y)^2)
     spring.len = len
 end
@@ -181,7 +222,7 @@ Add the edge to the list of edges leaving the vert.
 """
 function setleavingedge!(vert::Vertex, edge::Hedge)
     for i in 1:3
-        if !isassigned(vert.leavingEdges,i)
+        if ismissing(vert.leavingEdges[i])
             vert.leavingEdges[i] = edge
             break
         end
@@ -195,7 +236,7 @@ If two edges are provided, replace old edge by the new in the list of leaving ed
 """
 function setleavingedge!(vert::Vertex, oldedge::Hedge, newedge::Hedge)
     for i in 1:3
-        if !isassigned(vert.leavingEdges,i) break end
+        if ismissing(vert.leavingEdges[i]) break end
         if vert.leavingEdges[i] == oldedge
             vert.leavingEdges[i] = newedge
             break
@@ -271,7 +312,6 @@ end # getcellsizes
 function getcellsizes(cellverts::Array{Int64,2})
     cellsizes = Vector{Int64}(undef,size(cellverts, 1))
     row_size = size(cellverts, 2)
-    println(row_size)
     for i in 1:size(cellverts, 1)
         cellsize = 0
         for j in 1:row_size
@@ -296,19 +336,18 @@ function updatecell!(cell::Cell)
     # loop over vertex and get the measurements
     for edge in cell
         p1, p2 = edge.originVertex, edge.nextEdge.originVertex
-        #setleavingedge!(p1, edge)
-        sumArea += (p1.x*p2.y - p2.x*p1.y)
-        xcent += (p1.x + p2.x) * (p1.x*p2.y - p2.x*p1.y)
-        ycent += (p1.y + p2.y) * (p1.x*p2.y - p2.x*p1.y)
-        sumPerim += (distvertices(p1,p2))
+        areaterm = p1.x*p2.y - p2.x*p1.y
+        sumArea += areaterm
+        xcent += (p1.x + p2.x) * areaterm
+        ycent += (p1.y + p2.y) * areaterm
+        sumPerim += edge.edgeLen
     end
 
     # Update the values
     cell.areaCell = 0.5*sumArea
-    cell.centroid.x, cell.centroid.y = [xcent/(6.0*cell.areaCell), ycent/(6.0*cell.areaCell)]
+    cell.centroid.x = xcent/(6.0*cell.areaCell)
+    cell.centroid.y = ycent/(6.0*cell.areaCell)
     cell.perimCell = sumPerim
-
-    return cell
 end # updatecell
 export updatecell!
 
@@ -359,10 +398,10 @@ Create list of edges and assign the origin vertex to all of them.
 """
 function findorigin!(edges::Vector{Hedge}, vertices::Vector{Vertex}, vertsInEdge)
     for i in 1:size(vertsInEdge,1)
+        vert = vertices[vertsInEdge[i,1]][1]
         edges[i] = Hedge()
         edges[i].id = i
-        vert = vertices[vertsInEdge[i,1]]
-        edges[i].originVertex = vertices[vertsInEdge[i,1]][1]
+        edges[i].originVertex = vert
     end
 end # findorigin
 
@@ -472,6 +511,22 @@ end # newedgelen
 export newedgelen!
 
 """
+    update_esges!(edge::Hedge, twin::Hedge)
+Update pair of edges.
+"""
+function update_edges!(edge::Hedge, twin::Hedge)
+    newedgelen!(edge)
+    newedgelen!(twin)
+end
+export update_edges!
+
+function update_edges!(edge::Hedge, twin::Missing)
+    newedgelen!(edge)
+end
+export update_edges!
+
+
+"""
     createlistcell(edges::Vector{Hedge}, cellsizes)
 Create the list of cells and assign the incident edge for each cell
 """
@@ -483,7 +538,7 @@ function createlistcell(edges::Vector{Hedge}, cellsizes)
         cells[i].id = i
         cells[i].incEdge = edges[edgeid]
         cells[i].celltype = 1
-        cells[i].centroid = createvertex([0.0,0.0])
+        cells[i].centroid = Vertex([0.0,0.0])
         edgeid += cellsizes[i]
     end
     return cells
@@ -584,10 +639,6 @@ function updatesystem!(system::Mesh)
     # Update cells
     for i in 1:length(system.cells)
         updatecell!(system.cells[i])
-        # if(system.cells[i].areaCell < 0.0)
-        #     invertcell!(system.cells[i])
-        #     updatecell!(system.cells[i])
-        # end
     end
 
     # Update edges

@@ -32,16 +32,18 @@ end
 
 function uptade_local!(mesh::SubMesh, boundary::Mobile)
     for i in 1:length(mesh)
-        newedgelen!(mesh.edges[i])
-        !mesh.edges[i].border && newedgelen!(mesh.edges[i].twinEdge)
+        #newedgelen!(mesh.edges[i])
+        #!mesh.edges[i].border && newedgelen!(mesh.edges[i].twinEdge)
+        update_edges!(mesh.edges[i], mesh.edges[i].twinEdge)
         updatecell!(mesh.cells[i])
     end
 end
 
 function uptade_local!(mesh::SubMesh, boundary::Spring)
     for i in 1:length(mesh)
-        newedgelen!(mesh.edges[i])
-        !mesh.edges[i].border && newedgelen!(mesh.edges[i].twinEdge)
+        #newedgelen!(mesh.edges[i])
+        #!mesh.edges[i].border && newedgelen!(mesh.edges[i].twinEdge)
+        update_edges!(mesh.edges[i], mesh.edges[i].twinEdge)
         updatecell!(mesh.cells[i])
         update_spring!(boundary)
     end

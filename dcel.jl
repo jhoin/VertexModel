@@ -47,9 +47,14 @@ struct Mobile <: AbstractBoundary
 end
 export Mobile
 
+struct BorderEdge <: AbstractLine
+    twinEdge
+
+end
+
 # This object holds the half edge information
 mutable struct Hedge <: AbstractLine
-    twinEdge::Hedge
+    twinEdge::Union{Missing, Hedge}
     nextEdge::Hedge
     prevEdge::Hedge
     originVertex::Vertex
@@ -193,6 +198,7 @@ export createvertex
 function create_hedge(edge::Hedge)
     #edge.originVertex = vert
     edge.containCell = Cell()
+    edge.twinEdge = missing
     return edge
 end
 

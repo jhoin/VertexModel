@@ -47,18 +47,13 @@ struct Mobile <: AbstractBoundary
 end
 export Mobile
 
-struct BorderEdge <: AbstractLine
-    twinEdge
-
-end
-
 # This object holds the half edge information
 mutable struct Hedge <: AbstractLine
     twinEdge::Union{Missing, Hedge}
     nextEdge::Hedge
     prevEdge::Hedge
     originVertex::Vertex
-    containCell
+    containCell::AbstractFace
     edgeLen::Float64
     border::Bool
     eqbond::Float64
@@ -66,6 +61,11 @@ mutable struct Hedge <: AbstractLine
     Hedge() = create_hedge(new())
 end
 export Hedge
+
+# A border edge object, it only contains a
+struct BorderEdge <: AbstractLine
+    twin::Hedge
+end
 
 # This object holds the cell information
 mutable struct Cell <: AbstractFace
@@ -502,7 +502,7 @@ Assign the border field for an edge at the border.
 Use this run after all the other edge fields had been assigned. A border edge does not have twin!
 """
 function setedgeborder!(edge::Hedge)
-    edge.border = !isdefined(edge, :twinEdge)
+    edge.border = ismissing(edge.twinEdge)
 end # assignborders
 
 """

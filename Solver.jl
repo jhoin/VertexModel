@@ -110,9 +110,10 @@ function energyvert!(energy::Vector{Float64}, edges::Vector{Hedge}, vert::Vertex
     return total_energy
 end # energyvert
 
-# Solve the system of equations using the forward Euler method
-# Arguments: Mesh object and final time
-# Return: Mesh object updated
+"""
+    solve!(mesh::Mesh, t_final::Float64, K::Float64)
+Solve the system of equations using the forward Euler method. Updates the mesh type
+"""
 function solve!(mesh::Mesh, t_final::Float64, K::Float64)
     n_iter = 0
     t = 0.0
@@ -129,6 +130,32 @@ function solve!(mesh::Mesh, t_final::Float64, K::Float64)
             vert_displace!(energy_terms, submesh, old_energy)
         end
         n_iter += 1
+        mesh = newmesh
+    end
+end #solve!
+export solve!
+
+"""
+    solve!(mesh::Mesh, n_iter::Int64, K::Float64)
+Solve the equations using the forward Euler method.
+This uses the number of iterations instead of final time.
+"""
+function solve!(mesh::Mesh, n_iter::Int64, K::Float64)
+    iter = 0
+    t = 0.0
+    energy_terms = zeros(Float64, (4))
+    newmesh = mesh
+    while(iter < n_iter)
+        t = iter*step_size
+        #update_topology!(newmesh, 0.1, K, K*0.1)
+        for i in 1:length(newmesh.vertices)
+            vert = newmesh.vertices[i]
+            submesh = get_submesh(vert, K)
+            old_energy = energyvert!(energy_terms, submesh, vert.treatBoundary)
+            ismissing(old_energy) && continue
+            vert_displace!(energy_terms, submesh, old_energy)
+        end
+        iter += 1
         mesh = newmesh
     end
 end #solve!

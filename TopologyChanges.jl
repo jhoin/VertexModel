@@ -15,8 +15,10 @@ function update_topology!(mesh::Mesh, minlen::Float64, K::Float64,minarea::Float
             cell_division!(mesh, cell)
         end
         if cell.areaCell < minarea
+            halt = check_t1(mesh.edges[i])
+            halt && continue
             #length(cell) >= 4 && t1transition!(cell.incEdge, minlen)
-            println(cell.id, " ", length(cell))
+            length(cell) < 4 && cell_extrusion!(mesh, cell)
         end
     end
 
@@ -26,7 +28,6 @@ function update_topology!(mesh::Mesh, minlen::Float64, K::Float64,minarea::Float
         halt = check_t1(mesh.edges[i])
         halt && continue
         if mesh.edges[i].edgeLen < minlen
-            println(mesh.edges[i].id)
             t1transition!(mesh.edges[i], minlen)
             break
         end
@@ -105,6 +106,11 @@ function edgeremove!(edge::Hedge, prevtwin::Hedge)
     edge.prevEdge.nextEdge = edge.nextEdge
     edge.nextEdge.prevEdge = edge.prevEdge
 end # edgeremove
+
+function edgeremove!(edge::Hedge)
+    edge.prevEdge.nextEdge = edge.nextEdge
+    edge.nextEdge.prevEdge = edge.prevEdge
+end
 
 # Add edge into cell before indicated edge
 # Arguments: edge to be added, and edge that will come after the given edge
@@ -258,8 +264,58 @@ function split_twin!(mesh::Mesh, crossed::Hedge, split::Hedge, vert::Vertex)
 end
 
 function cell_extrusion!(mesh::Mesh, cell::Cell)
+
+    for edge in cell
+        edge.border && return
+    end
     # pick the first vertex and move to the center
-    # store the
+    vert = cell.incEdge.originVertex
+    vert.x, vert.y = cell.centroid.x, cell.centroid.y
+
+    # set leaving edges
+    extrude_leavingedges!(cell)
+
+    # remove twins from neighbor cells
+    extrude_twins!(cell)
+
+    delete_elements!(mesh, cell)
 end
+
+function extrude_leavingedges!(cell::Cell)
+    vert = cell.incEdge.originVertex
+    for i in 1:3
+        edge = vert.leavingEdges[i]
+        if edge.containCell == cell
+            replace = edge.twinEdge.prevEdge.twinEdge
+            replace.originVertex = vert
+            setleavingedge!(vert, edge, replace)
+        elseif edge.twinEdge.containCell == cell
+            replace = edge.nextEdge
+            replace.originVertex = vert
+            setleavingedge!(vert, edge, replace)
+        end
+    end
+end
+
+function extrude_twins!(cell::Cell)
+    for edge in cell
+        edgeremove!(edge.twinEdge)
+    end
+end
+
+function delete_elements!(mesh::Mesh, cell::Cell)
+    keepvert = true
+    for edge in cell
+        remove_frommesh!(mesh, edge)
+        remove_frommesh!(mesh, edge.twinEdge)
+        if keepvert
+            keepvert = false
+            continue
+        end
+        remove_frommesh!(mesh, edge.originVertex)
+    end
+    remove_frommesh!(mesh, cell)
+end
+
 
 end # module

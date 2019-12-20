@@ -557,6 +557,16 @@ function addtomesh!(mesh::Mesh, vert::Vertex)
 end
 export addtomesh!
 
+function remove_frommesh!(mesh::Mesh, vert::Vertex)
+    for i in 1:length(mesh.vertices)
+        if vert == mesh.vertices[i]
+            deleteat!(mesh.vertices, i)
+            break
+        end
+    end
+end
+export remove_frommesh!
+
 function addtomesh!(mesh::Mesh, edge::Hedge)
     push!(mesh.edges, edge)
     mesh.lastid[2] += 1
@@ -564,12 +574,32 @@ function addtomesh!(mesh::Mesh, edge::Hedge)
 end
 export addtomesh!
 
+function remove_frommesh!(mesh::Mesh, edge::Hedge)
+    for i in 1:length(mesh.edges)
+        if edge == mesh.edges[i]
+            deleteat!(mesh.edges, i)
+            break
+        end
+    end
+end
+export remove_frommesh!
+
 function addtomesh!(mesh::Mesh, cell::Cell)
     push!(mesh.cells, cell)
     mesh.lastid[3] += 1
     cell.id = mesh.lastid[3]
 end
 export addtomesh!
+
+function remove_frommesh!(mesh::Mesh, cell::Cell)
+    for i in 1:length(mesh.cells)
+        if cell == mesh.cells[i]
+            deleteat!(mesh.cells, i)
+            break
+        end
+    end
+end
+export remove_frommesh!
 
 # Import mesh from file, and represent it as a DCEL object
 # Arguments: file path

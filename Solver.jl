@@ -121,7 +121,7 @@ function solve!(mesh::Mesh, t_final::Float64, K::Float64)
     newmesh = mesh
     while(t < t_final)
         t = n_iter*step_size
-        #update_topology!(newmesh, 0.1, K, K*0.1)
+        update_topology!(newmesh, 0.1, K, K*0.1)
         for i in 1:length(newmesh.vertices)
             vert = newmesh.vertices[i]
             submesh = get_submesh(vert, K)

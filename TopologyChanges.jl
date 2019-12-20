@@ -8,22 +8,19 @@ using ..PointGeometry
 # Return: updated mesh
 function update_topology!(mesh::Mesh, minlen::Float64, K::Float64,minarea::Float64)
 
-    #cell_division!(mesh, mesh.cells[13])
     for i in 1:size(mesh.cells,1)
         cell = mesh.cells[i]
         if cell.areaCell > 2.5*K
             cell_division!(mesh, cell)
         end
         if cell.areaCell < minarea
-            halt = check_t1(mesh.edges[i])
+            halt = check_t2(cell)
             halt && continue
-            #length(cell) >= 4 && t1transition!(cell.incEdge, minlen)
             length(cell) < 4 && cell_extrusion!(mesh, cell)
         end
     end
 
     # Check for t1 transitions
-    #t1transition!(mesh.edges[50], minlen)
     for i in 1:size(mesh.edges,1)
         halt = check_t1(mesh.edges[i])
         halt && continue
@@ -78,6 +75,13 @@ function check_t1(edge::Hedge)
     return cannot_perform
 end
 
+function check_t2(cell::Cell)
+    halt = false
+    for edge in cell
+        if edge.border halt = true end
+    end
+    return halt
+end
 # Make the topological changes for the t1 transition
 # Arguments:edge object
 # Return: edge object updated
@@ -211,13 +215,10 @@ function cell_division!(mesh::Mesh, cell::Cell)
     new_cell = Cell()
     new_cell.centroid = Vertex([0.0,0.0])
     addtomesh!(mesh, new_cell)
-    #new_cell.eqarea = cell.eqarea
-    #new_cell.eqperim = cell.eqperim
     new_cell.area_elast = cell.area_elast
     new_cell.perim_elast = cell.perim_elast
     new_cell.incEdge = focal2
     focal2.containCell = new_cell
-    #new_cell.id = length(mesh.cells)
     for edge in new_cell
        edge.containCell = new_cell
     end

@@ -11,12 +11,14 @@ function update_topology!(mesh::Mesh, minlen::Float64, K::Float64,minarea::Float
     for i in 1:size(mesh.cells,1)
         cell = mesh.cells[i]
         if cell.areaCell > 2.5*K
+            println("Cell division")
             cell_division!(mesh, cell)
         end
-        if cell.areaCell < minarea
+        if cell.areaCell < minarea && length(cell) < 4
+            println("here")
             halt = check_t2(cell)
             halt && continue
-            length(cell) < 4 && cell_extrusion!(mesh, cell)
+            cell_extrusion!(mesh, cell)
         end
     end
 

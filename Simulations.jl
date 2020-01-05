@@ -25,16 +25,19 @@ function init_model!(mesh::Mesh)
 end
 export init_model!
 
+"""
+    apoptosis(t_final)
+Run the apoptosis model until t_final. The central cell must reduce in size until it disappears...
+"""
 function apoptosis()
     mesh = rosetta_mesh(30.)
     updatesystem!(mesh)
-    adhesion_matrix = [0.2 0.8; 0.8 0.2]
+    adhesion_matrix = [0.2 -2.0; -2.0 0.2]
     plot_mesh(mesh)
 
     # Define cell types
-    a_cell = mesh.cells[1]
+    a_cell = mesh.cells[1] # the central cell
     a_cell.celltype = 2
-
 
     # Paremeters
     A_0 = 3000.
@@ -58,10 +61,7 @@ function apoptosis()
 
     a_vert = a_cell.incEdge.originVertex
     energies = zeros(Float64, (4))
-    edges = collect(skipmissing(a_vert.leavingEdges))
-    submesh = get_submesh(a_vert, A_0)
-    solve!(mesh, 30.0, A_0)
-    #println(a_cell.incEdge.edgeLen)
+    solve!(mesh, 100.0, A_0)
     return mesh
 end
 export apoptosis
@@ -90,9 +90,6 @@ function boundingbox!(mesh::Mesh)
         end
     end
 
-    # NOTE: Necesary post processing (MANUAL)
-    #vert = springs[9].vert
-    #vert.treatBoundary = Mobile(vert)
 end
 
 function anchortobox(vert::Vertex, boxxy::Vector{Float64})
@@ -147,14 +144,10 @@ function plot_mesh(mesh::Mesh)
     end
 
     # plot the grid
-    #plt_mesh = plot(x=xs[1], y=ys[1], Geom.polygon(preserve_order=true), Guide.annotation(compose(context(), text(mesh.cells[1].centroid.x, mesh.cells[1].centroid.y,   "$(mesh.cells[1].id)"))))
     plt_mesh = plot(x=xs[1], y=ys[1], Geom.polygon(preserve_order=true))
     for cell in 2:length(xs)
         push!(plt_mesh, layer(x=xs[cell], y=ys[cell], Geom.polygon(preserve_order=true)))
-        #push!(plt_mesh, Guide.annotation(compose(context(), text(mesh.cells[cell].centroid.x, mesh.cells[cell].centroid.y, "$(mesh.cells[cell].id)"))))
     end
-    #display(plt_mesh)
-    #plot_anchors!(mesh, plt_mesh)
     display(plt_mesh)
 end
 export plot_mesh

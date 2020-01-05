@@ -7,7 +7,7 @@ using ..TopologyChanges
 
 # Constants
  const step_size = 0.001
- const dx, dy = 0.001, 0.001
+ const dx, dy = 0.0001, 0.0001
  const directions = (90.0*π/360.0, 180.0*π/360.0, 270.0*π/360.0, 0.0*π/360.0)
 
 # Update the local cell
@@ -121,8 +121,8 @@ function solve!(mesh::Mesh, t_final::Float64, K::Float64)
     newmesh = mesh
     while(t < t_final)
         t = n_iter*step_size
-        update_topology!(newmesh, 0.1, K, K*0.1)
-        for i in 1:length(newmesh.vertices)
+        update_topology!(newmesh, 10., K, K*0.1)
+        @inbounds for i in 1:length(newmesh.vertices)
             vert = newmesh.vertices[i]
             submesh = get_submesh(vert, K)
             old_energy = energyvert!(energy_terms, submesh, vert.treatBoundary)
@@ -198,7 +198,7 @@ function vert_displace!(energy::Vector{Float64}, mesh::SubMesh, old_energy::Floa
         vert.y = vert.y + dx*sin(directions[i])
         uptade_local!(mesh, vert.treatBoundary)
         new_energy = energyvert!(energy, mesh, vert.treatBoundary)
-        new_energy < old_energy && break
+        new_energy > old_energy && continue
         vert.x, vert.y = coords
     end
 end

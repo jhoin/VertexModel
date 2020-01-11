@@ -3,12 +3,12 @@ module InitialConditions
 using ..Meshes
 
 """
-    rosetta_hexcenters(cellradius::Float64)
-Create center points mesh (make figures)
+    rosetta_hexcenters(rcell::Float64)
+Return the center points of each hexagon in a rosetta (make figures)
 """
-function rosetta_hexcenters(cellradius::Float64)
-    w = sqrt(3.) * cellradius # cell width
-    h = 2. * cellradius # cell height
+function rosetta_hexcenters(rcell::Float64)
+    w = sqrt(3.) * rcell # cell width
+    h = 2. * rcell # cell height
     xy = [0.0, 0.0]
     centers = Array{Float64,2}(undef, 8, 2)
     centers[1,:] = [1.5w + 20., 1.75h + 20.]
@@ -21,12 +21,17 @@ function rosetta_hexcenters(cellradius::Float64)
     return centers
 end
 
-function rosetta_mesh(cellradius::Float64)
-    centers = rosetta_hexcenters(cellradius)
+"""
+    rosetta_mesh(rcell::Float64)
+Create a hexagonal rosetta tiling, with one cell at the center surrounded by six other cells.
+Each cell has a radius of rcell.
+"""
+function rosetta_mesh(rcell::Float64)
+    centers = rosetta_hexcenters(rcell)
     ncells = 7
-    hex_coords = hextable_coords(centers, ncells, cellradius)
-    vert_coords = verttable(centers, ncells, hex_coords)
-    hex_verts = hextable(vert_coords, ncells, hex_coords)
+    hex_coords = hextable_coords(centers, rcell)
+    vert_coords = verttable(centers, hex_coords)
+    hex_verts = hextable(vert_coords, hex_coords)
     return createmesh(hex_verts, vert_coords)
 end
 export rosetta_mesh
@@ -35,38 +40,52 @@ export rosetta_mesh
     hexagonal_mesh(dims::Vector{Int64}, rcell::Float64)
 Create a hexagonal tiling, with dims[1]xdims[2] cells of radius rcell
 """
-function honeycomb_mesh(dims::Vector{Int64}, cellradius::Float64)
-    centers = hexagon_centers(dims, cellradius)
-    ncells = dims[1]*dims[2]
-    hex_coords = hextable_coords(centers, ncells, cellradius)
-    vert_coords = verttable(centers, ncells, hex_coords)
-    hex_verts = hextable(vert_coords, ncells, hex_coords)
+function honeycomb_mesh(dims::Vector{Int64}, rcell::Float64)
+    centers = hexagon_centers(dims, rcell)
+    hex_coords = hextable_coords(centers, rcell)
+    vert_coords = verttable(centers, hex_coords)
+    hex_verts = hextable(vert_coords, hex_coords)
     return createmesh(hex_verts, vert_coords)
 end
 export honeycomb_mesh
 
-function hextable_coords(centers::Array{Float64,2}, ncells::Int64, cellradius::Float64)
-    hex_coords = Array{Float64,3}(undef, ncells, 6, 2)
-    for cell in 1:ncells
-        hex = draw_hex(centers[cell,:], cellradius)
+"""
+    hextable_coords(centers::Array{Float64,2}, rcell::Float64)
+Create a hexagonal tiling, with dims[1]xdims[2] cells of radius rcell
+"""
+function hextable_coords(centers::Array{Float64,2}, rcell::Float64)
+    n = size(centers,1) # number of hexagons
+    hex_coords = Array{Float64,3}(undef, n, 6, 2)
+    for cell in 1:n
+        hex = draw_hex(centers[cell,:], rcell)
         hex_coords[cell, :, :] = hex
     end
     return hex_coords
 end
 
-function verttable(centers::Array{Float64,2}, ncells::Int64, hex::Array{Float64,3})
-    verts = Array{Float64}(undef, ncells*6, 2)
+"""
+    verttable(centers::Array{Float64,2}, hex::Array{Float64,3})
+Returns a 2D array listing the unique vertices of mesh given the center coordinates of hexagons (centers), and a table storing the coordinates of all vertices of each hexagon.
+"""
+function verttable(centers::Array{Float64,2}, hex::Array{Float64,3})
+    n = size(centers,1) # number of hexagons
+    verts = Array{Float64}(undef, 6n, 2)
     cur_vert = 1
-    for cell in 1:ncells
+    for cell in 1:n
         verts[cur_vert:cur_vert + 5, :] = hex[cell, :, :]
         cur_vert += 6
     end
     return unique(verts, dims=1)
 end
 
-function hextable(verts::Array{Float64,2}, ncells::Int64, hex_coords::Array{Float64,3})
-    hex_mesh = Array{Int64}(undef, ncells, 6)
-    for cell in 1:ncells
+"""
+    hextable(verts::Array{Float64,2}, hex_coords::Array{Float64,3})
+Create a 2D array storing the index of the vertices (from teh matrix verts) presents in each hexagon.
+"""
+function hextable(verts::Array{Float64,2}, hex_coords::Array{Float64,3})
+    n = size(hex_coords, 1) # number of hexagons
+    hex_mesh = Array{Int64}(undef, n, 6)
+    for cell in 1:n
         for vert in 1:6
             vert_id = find_coord(hex_coords[cell, vert, :], verts)
             hex_mesh[cell, vert] = vert_id
@@ -75,9 +94,13 @@ function hextable(verts::Array{Float64,2}, ncells::Int64, hex_coords::Array{Floa
     return hex_mesh
 end
 
-function hexagon_centers(dims::Vector{Int64}, cellradius::Float64 )
-    w = sqrt(3.) * cellradius # cell width
-    h = 2. * cellradius # cell height
+"""
+    hexagon_centers(dims::Vector{Int64}, rcell::Float64)
+Create a 2D array storing the centers of each hexagon.
+"""
+function hexagon_centers(dims::Vector{Int64}, rcell::Float64)
+    w = sqrt(3.) * rcell # cell width
+    h = 2. * rcell # cell height
     xy = [0.0, 0.0]
     centers = Array{Float64}(undef, dims[1]*dims[2], 2)
     cell = 1
@@ -96,21 +119,29 @@ function hexagon_centers(dims::Vector{Int64}, cellradius::Float64 )
     return centers
 end
 
-function draw_hex(c::Vector{Float64}, radius::Float64)
+"""
+    draw_hex(c::Vector{Float64}, rcell::Float64)
+Create a single hexagon, given the center and radius of the hexagon.
+"""
+function draw_hex(c::Vector{Float64}, rcell::Float64)
     hex_coords = Array{Float64}(undef, 6, 2)
     directions = [6., 5., 4., 3., 2., 1.]
     for i in 1:length(directions)
         angle_deg = 60.0 * i + 30.0
         ang = π/180.0 * angle_deg
-        hex_coords[i, :] = [c[1] + radius*cos(ang), c[2] + radius*sin(ang)]
+        hex_coords[i, :] = [c[1] + rcell*cos(ang), c[2] + rcell*sin(ang)]
     end
     return hex_coords
 end
 
-function find_coord(coord::Vector{Float64}, coords::Array{Float64,2})
+"""
+    find_coord(point::Vector{Float64}, coords::Array{Float64,2})
+Find the index position of a point in the list of coordinates. It returns the index if it is found and zero if the point is not there.
+"""
+function find_coord(point::Vector{Float64}, coords::Array{Float64,2})
     found = 0
     for vert in 1:size(coords, 1)
-        if coord ≈ coords[vert,:]
+        if point ≈ coords[vert,:]
             found = vert
             break
         end

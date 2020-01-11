@@ -10,7 +10,7 @@ function rosetta_hexcenters(rcell::Float64)
     w = sqrt(3.) * rcell # cell width
     h = 2. * rcell # cell height
     xy = [0.0, 0.0]
-    centers = Array{Float64,2}(undef, 8, 2)
+    centers = Array{Float64,2}(undef, 7, 2)
     centers[1,:] = [1.5w + 20., 1.75h + 20.]
     dx = [-0.5w, 0.5w, w, 0.5w, -0.5w, -w]
     dy = [-0.75h, -0.75h, 0.0, 0.75h, 0.75h, 0.0]
@@ -28,7 +28,6 @@ Each cell has a radius of rcell.
 """
 function rosetta_mesh(rcell::Float64)
     centers = rosetta_hexcenters(rcell)
-    ncells = 7
     hex_coords = hextable_coords(centers, rcell)
     vert_coords = verttable(centers, hex_coords)
     hex_verts = hextable(vert_coords, hex_coords)

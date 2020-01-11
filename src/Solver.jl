@@ -161,21 +161,6 @@ function solve!(mesh::Mesh, n_iter::Int64, K::Float64)
 end #solve!
 export solve!
 
-function attempt_move!(vert::Vertex, radius::Float64)
-    rnd1 = rand()
-    rnd2 = rand()
-
-    # If one is bigger than the other, swap them
-    if rnd2 > rnd1 rnd2, rnd1 = rnd1, rnd2 end
-
-    # Moooooove the points
-    angle = 360*rand()
-    vert.x = vert.x + rnd2*radius*cos(angle*π*180.0)
-    vert.y = vert.y + rnd2*radius*sin(angle*π*180.0)
-    #vert.x = vert.x + rnd2*radius*cos(2.0*π*rnd1/rnd2)
-    #vert.y = vert.y + rnd2*radius*sin(2.0*π*rnd1/rnd2)
-end
-
 function vert_displace!(energy::Vector{Float64},vert::Vertex, d::Float64, old_energy::Float64, K::Float64)
     directions = [90.0*π/360.0, 180.0*π/360.0, 270.0*π/360.0, 0.0*π/360.0]
     edges = collect(skipmissing(vert.leavingEdges))

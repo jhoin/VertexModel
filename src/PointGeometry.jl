@@ -243,4 +243,24 @@ function shortest_axis(cell::Cell)
 end # shortest_axis
 export shortest_axis
 
+"""
+    attempt_move!(vert::Vertex, radius::Float64)
+Move a vertex in random angle at a radius distance.
+"""
+function attempt_move!(vert::Vertex, radius::Float64)
+    rnd1 = rand()
+    rnd2 = rand()
+
+    # If one is bigger than the other, swap them
+    if rnd2 > rnd1 rnd2, rnd1 = rnd1, rnd2 end
+
+    # Moooooove the points
+    angle = 360*rand()
+    vert.x = vert.x + rnd2*radius*cos(angle*π*180.0)
+    vert.y = vert.y + rnd2*radius*sin(angle*π*180.0)
+    #vert.x = vert.x + rnd2*radius*cos(2.0*π*rnd1/rnd2)
+    #vert.y = vert.y + rnd2*radius*sin(2.0*π*rnd1/rnd2)
+end
+export attempt_move!
+
 end # end of module

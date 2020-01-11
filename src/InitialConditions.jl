@@ -1,6 +1,7 @@
 module InitialConditions
 
 using ..Meshes
+using ..PointGeometry
 
 """
     rosetta_hexcenters(rcell::Float64)
@@ -147,5 +148,17 @@ function find_coord(point::Vector{Float64}, coords::Array{Float64,2})
     end
     return found
 end
+
+"""
+    disturb_verts(mesh::Mesh)
+Change the coordinates of the vertices in a mesh randomly. Assumes a regular mesh
+"""
+function disturb_verts!(mesh::Mesh)
+    r_disturb = 0.1*mesh.edges[1].edgeLen
+    for vert in 1:length(mesh.vertices)
+        attempt_move!(mesh.vertices[vert], r_disturb)
+    end
+end
+export disturb_verts!
 
 end #module

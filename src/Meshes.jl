@@ -148,7 +148,7 @@ function Base.length(mesh::SubMesh)
     return length(mesh.edges)
 end
 
-function Base.show(mesh::Mesh)
+function Base.show(io::IO, mesh::Mesh)
     println("Number of vertices: ",length(mesh.vertices))
     println("Number of edges: ",length(mesh.edges))
     println("Number of cells: ",length(mesh.cells))

@@ -27,11 +27,13 @@ export init_model!
 
 """
     apoptosis(t_final)
-Run the apoptosis model until t_final. The central cell must reduce in size until it disappears...
+Run the apoptosis model until t_final.
+The central cell must reduce in size until it disappears...
 """
 function apoptosis()
     mesh = rosetta_mesh(30.)
     updatesystem!(mesh)
+    plot_mesh(mesh)
     adhesion_matrix = [0.2 -2.0; -2.0 0.2]
 
     # Define cell types
@@ -60,7 +62,8 @@ function apoptosis()
 
     a_vert = a_cell.incEdge.originVertex
     energies = zeros(Float64, (4))
-    solve!(mesh, 100.0, A_0)
+    solve!(mesh, 200.0, A_0)
+    plot_mesh(mesh)
     return mesh
 end
 export apoptosis
@@ -147,7 +150,8 @@ function plot_mesh(mesh::Mesh)
     for cell in 2:length(xs)
         push!(plt_mesh, layer(x=xs[cell], y=ys[cell], Geom.polygon(preserve_order=true)))
     end
-    draw(PNG("myplot.png", 3inch, 3inch), plt_mesh)
+    #draw(PNG("myplot.png", 3inch, 3inch), plt_mesh)
+    display(plt_mesh)
 end
 export plot_mesh
 

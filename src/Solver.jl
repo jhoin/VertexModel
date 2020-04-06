@@ -101,7 +101,7 @@ function energyvert!(energy::Vector{Float64}, edges::Vector{Hedge}, vert::Vertex
     for i in 1:length(edges)
         edge = edges[i]
         cell = edge.containCell
-        energy[1] = energy[1] + 0.5*(cell.areaCell/K - 1.0)^2
+        energy[1] = energy[1] + 0.5(cell.areaCell/K - 1.0)^2
         energy[2] = energy[2] + 0.5*cell.perim_elast*cell.perimCell^2 / K
         energy[3] = energy[3] + edge.eqbond*edge.edgeLen/sqrt(K)
         energy[4] = energy[4] + boundary.spring_const * boundary.len / sqrt(K)

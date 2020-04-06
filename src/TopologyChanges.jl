@@ -19,6 +19,7 @@ function update_topology!(mesh::Mesh, minlen::Float64, K::Float64,minarea::Float
             halt = check_t2(cell)
             halt && continue
             cell_extrusion!(mesh, cell)
+            break
         end
     end
 
@@ -66,11 +67,14 @@ function t1transition!(focal_edge::Hedge, minlen::Float64)
     for i in 1:length(aff_cells)
         updatecell!(aff_cells[i])
     end
+    focal_edge.state = true
+    focal_twin.state = true
 end # t1transition
 export t1transition!
 
 function check_t1(edge::Hedge)
     cannot_perform = false
+    if edge.state cannot_perform = true end
     if edge.border cannot_perform = true end
     if edge.nextEdge.border cannot_perform = true end
     if edge.prevEdge.border  cannot_perform = true end
@@ -319,6 +323,5 @@ function delete_elements!(mesh::Mesh, cell::Cell)
     end
     remove_frommesh!(mesh, cell)
 end
-
 
 end # module

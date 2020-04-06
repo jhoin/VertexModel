@@ -57,6 +57,7 @@ mutable struct Hedge <: AbstractLine
     edgeLen::Float64
     border::Bool
     eqbond::Float64
+    state::Bool
     id::Int64
     Hedge() = create_hedge(new())
 end
@@ -199,6 +200,7 @@ function create_hedge(edge::Hedge)
     #edge.originVertex = vert
     edge.containCell = Cell()
     edge.twinEdge = missing
+    edge.state = false
     return edge
 end
 
